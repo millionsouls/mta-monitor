@@ -22,7 +22,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
-import gtfs_realtime_pb2 as gtfs__realtime__pb2
+from . import gtfs_realtime_pb2 as gtfs__realtime__pb2
 
 
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x18gtfs-realtime-NYCT.proto\x12\x10transit_realtime\x1a\x13gtfs-realtime.proto\"b\n\x15TripReplacementPeriod\x12\x10\n\x08route_id\x18\x01 \x01(\t\x12\x37\n\x12replacement_period\x18\x02 \x01(\x0b\x32\x1b.transit_realtime.TimeRange\"w\n\x0eNyctFeedHeader\x12\x1b\n\x13nyct_subway_version\x18\x01 \x02(\t\x12H\n\x17trip_replacement_period\x18\x02 \x03(\x0b\x32\'.transit_realtime.TripReplacementPeriod\"\xb5\x01\n\x12NyctTripDescriptor\x12\x10\n\x08train_id\x18\x01 \x01(\t\x12\x13\n\x0bis_assigned\x18\x02 \x01(\x08\x12\x41\n\tdirection\x18\x03 \x01(\x0e\x32..transit_realtime.NyctTripDescriptor.Direction\"5\n\tDirection\x12\t\n\x05NORTH\x10\x01\x12\x08\n\x04\x45\x41ST\x10\x02\x12\t\n\x05SOUTH\x10\x03\x12\x08\n\x04WEST\x10\x04\"C\n\x12NyctStopTimeUpdate\x12\x17\n\x0fscheduled_track\x18\x01 \x01(\t\x12\x14\n\x0c\x61\x63tual_track\x18\x02 \x01(\t:Y\n\x10nyct_feed_header\x12\x1c.transit_realtime.FeedHeader\x18\xe9\x07 \x01(\x0b\x32 .transit_realtime.NyctFeedHeader:e\n\x14nyct_trip_descriptor\x12 .transit_realtime.TripDescriptor\x18\xe9\x07 \x01(\x0b\x32$.transit_realtime.NyctTripDescriptor:q\n\x15nyct_stop_time_update\x12+.transit_realtime.TripUpdate.StopTimeUpdate\x18\xe9\x07 \x01(\x0b\x32$.transit_realtime.NyctStopTimeUpdateB\x1d\n\x1b\x63om.google.transit.realtime')

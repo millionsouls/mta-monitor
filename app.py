@@ -1,11 +1,13 @@
 from flask import Flask, jsonify, render_template, request
-from datetime import datetime
 import requests
-import proto.gtfs_realtime_pb2 as gtfs_realtime_pb2
+from nyct_refs import (
+    fmt_time, load_stop_names, get_station_name, get_direction_name,
+    NYCTFeed
+)
 
 app = Flask(__name__)
 
-# ([list of routes], feed URL)
+STOP_NAMES = load_stop_names()
 ROUTE_FEED_MAP = [
     (["1", "2", "3", "4", "5", "6", "7", "S"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"),
     (["A", "C", "E", "SR"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"),
@@ -30,65 +32,86 @@ def fetch_feed(line):
     resp.raise_for_status()
     return resp.content
 
-def fmt_time(ts):
-    if not ts:
-        return ""
-    # epoch seconds to HH:MM:SS
-    try:
-        return datetime.fromtimestamp(ts).strftime("%H:%M:%S")
-    except Exception:
-        return str(ts)
-
-def get_train_data(line="A"):
-    feed_bytes = fetch_feed(line)
-    feed = gtfs_realtime_pb2.FeedMessage()
-    feed.ParseFromString(feed_bytes)
-    train_list = []
-
-    for entity in feed.entity:
-        if not entity.HasField("trip_update"):
-            continue
-        trip_update = entity.trip_update
-        trip_id = trip_update.trip.trip_id
-        direction = getattr(trip_update.trip, "direction_id", "")
-        stop_time_updates = trip_update.stop_time_update
-
-        if stop_time_updates:
-            next_stop = stop_time_updates[0]
-            stop_id = next_stop.stop_id
-            arrival_time = next_stop.arrival.time if next_stop.HasField("arrival") else None
-            departure_time = next_stop.departure.time if next_stop.HasField("departure") else None
-
-            train_list.append({
-                "trip_id": trip_id,
-                "direction": direction,
-                "next_stop": stop_id,
-                "departure": fmt_time(departure_time),
-                "arrival": fmt_time(arrival_time),
-                "actual_track": "",  # NYCT extension: fill if needed
-                "is_assigned": "",   # NYCT extension: fill if needed
-            })
-        else:
-            train_list.append({
-                "trip_id": trip_id,
-                "direction": direction,
-                "start_time": fmt_time(getattr(trip_update.trip, "start_time", "")),
-                "next_stop": "No upcoming stops listed.",
-                "departure": "",
-                "arrival": "",
-                "actual_track": "",
-                "is_assigned": "",
-            })
-    return train_list
-
 @app.route("/")
 def index():
     return render_template("index.html")
 
 @app.route("/api/trains")
 def api_trains():
+    line = request.args.get("line", "A").upper()
+    feed_bytes = fetch_feed(line)
+    feed = NYCTFeed(feed_bytes)
+    train_list = []
+    for trip in feed.trips:
+        # Filter by route_id (the train line)
+        if hasattr(trip.trip, "route_id") and trip.trip.route_id.upper() != line:
+            continue
+        trip_id = trip.id
+        direction = get_direction_name(trip.direction_id, trip_id, trip.stop_time_updates[0].stop_id if trip.stop_time_updates else "")
+        if trip.stop_time_updates:
+            next_stop = trip.stop_time_updates[0]
+            train_list.append({
+                "trip_id": trip_id,
+                "direction": direction,
+                "next_stop": next_stop.stop_id,
+                "next_stop_name": get_station_name(next_stop.stop_id, STOP_NAMES),
+                "departure": fmt_time(next_stop.departure_time),
+                "arrival": fmt_time(next_stop.arrival_time),
+                "actual_track": next_stop.actual_track,
+                "is_assigned": next_stop.is_assigned,
+            })
+        else:
+            train_list.append({
+                "trip_id": trip_id,
+                "direction": direction,
+                "start_time": fmt_time(trip.start_time),
+                "next_stop": "000",
+                "next_stop_name": "N/A",
+                "departure": "",
+                "arrival": "",
+                "actual_track": "",
+                "is_assigned": "",
+            })
+    return jsonify(train_list)
+
+@app.route("/api/vehicles")
+def api_vehicles():
+    line = request.args.get("line", "A").upper()
+    feed_bytes = fetch_feed(line)
+    feed = NYCTFeed(feed_bytes)
+    vehicles = []
+    for vehicle in feed.vehicles:
+        # Filter by route_id (the train line)
+        if hasattr(vehicle.vehicle.trip, "route_id") and vehicle.vehicle.trip.route_id.upper() != line:
+            continue
+        vehicles.append({
+            "trip_id": vehicle.trip_id,
+            "current_status": vehicle.current_status,
+            "stop_id": vehicle.stop_id,
+            "stop_name": get_station_name(vehicle.stop_id, STOP_NAMES),
+            "timestamp": fmt_time(vehicle.timestamp),
+        })
+    return jsonify(vehicles)
+
+@app.route("/api/alerts")
+def api_alerts():
     line = request.args.get("line", "A")
-    return jsonify(get_train_data(line))
+    feed_bytes = fetch_feed(line)
+    feed = NYCTFeed(feed_bytes)
+    alerts = []
+    for alert in feed.alerts:
+        alerts.append({
+            "header_text": alert.header_text,
+            "description_text": alert.description_text,
+            "effect": alert.effect,
+        })
+    return jsonify(alerts)
+
+@app.route("/api/stops")
+def api_stops():
+    stops = [{"stop_id": k, "stop_name": v} for k, v in STOP_NAMES.items()]
+    return jsonify(stops)
 
 if __name__ == "__main__":
+    STOP_NAMES = load_stop_names()
     app.run(debug=True)

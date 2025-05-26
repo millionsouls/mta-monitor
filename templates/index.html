@@ -108,8 +108,8 @@
                 const row = document.createElement('tr');
                 if (changedRows.includes(i)) row.classList.add('updated');
                 row.innerHTML = `<td>${train.trip_id}</td>
-                                 <td>${directionText(train.direction)}</td>
-                                 <td>${train.next_stop}</td>
+                                 <td>${train.direction}</td>
+                                 <td>${train.next_stop_name}</td>
                                  <td>${train.departure}</td>
                                  <td>${train.arrival}</td>
                                  <td>${train.actual_track || ''}</td>
