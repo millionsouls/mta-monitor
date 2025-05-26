@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MTA Monitor</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+        th { background: #f0f0f0; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        .updated { background: #d1e7dd !important; }
+        #alert { color: #fff; background: #28a745; padding: 10px; display: none; margin-bottom: 1em; }
+        input[type="checkbox"][disabled]:checked {
+            accent-color: #007bff;
+            width: 20px;
+            height: 20px;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>MTA Train Monitor</h1>
+    <label for="line-select">Select Subway Line:</label>
+    <select id="line-select">
+        <option value="A">A</option>
+        <option value="B">B</option>
+        <option value="C">C</option>
+        <option value="D">D</option>
+        <option value="E">E</option>
+        <option value="F">F</option>
+        <option value="G">G</option>
+        <option value="J">J</option>
+        <option value="L">L</option>
+        <option value="M">M</option>
+        <option value="N">N</option>
+        <option value="Q">Q</option>
+        <option value="R">R</option>
+        <option value="S">S</option>
+        <option value="Z">Z</option>
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+        <option value="6">6</option>
+        <option value="7">7</option>
+    </select>
+    <div id="alert"></div>
+
+    <div id="track-summary" style="margin-bottom: 1em; font-weight: bold;"></div>
+
+    <table id="train-table">
+        <thead>
+            <tr>
+                <th>Trip ID</th>
+                <th>Direction</th>
+                <th>Next Stop</th>
+                <th>Departure</th>
+                <th>Arrival</th>
+                <th>Actual Track</th>
+                <th>Assigned</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <script>
+        let lastData = [];
+        let polling = null;
+
+        function showAlert(msg) {
+            const alertDiv = document.getElementById('alert');
+            alertDiv.textContent = msg;
+            alertDiv.style.display = 'block';
+            setTimeout(() => { alertDiv.style.display = 'none'; }, 3000);
+        }
+
+        function diffData(newData, oldData) {
+            // Returns array of indices that changed
+            let changed = [];
+            newData.forEach((row, i) => {
+                if (!oldData[i] ||
+                    row.trip_id !== oldData[i].trip_id ||
+                    row.next_stop !== oldData[i].next_stop ||
+                    row.arrival !== oldData[i].arrival) {
+                    changed.push(i);
+                }
+            });
+            return changed;
+        }
+
+        async function fetchTrains(line) {
+            const response = await fetch(`/api/trains?line=${line}`);
+            const trains = await response.json();
+            const tbody = document.querySelector('#train-table tbody');
+            tbody.innerHTML = '';
+            const changedRows = diffData(trains, lastData);
+
+            // --- Track Summary Section ---
+            const tracks = [...new Set(trains.map(t => t.actual_track).filter(Boolean))];
+            document.getElementById('track-summary').textContent =
+                tracks.length
+                    ? `Tracks in use: ${tracks.join(', ')}`
+                    : 'No track information available.';
+
+            trains.forEach((train, i) => {
+                const row = document.createElement('tr');
+                if (changedRows.includes(i)) row.classList.add('updated');
+                row.innerHTML = `<td>${train.trip_id}</td>
+                                 <td>${directionText(train.direction)}</td>
+                                 <td>${train.next_stop}</td>
+                                 <td>${train.departure}</td>
+                                 <td>${train.arrival}</td>
+                                 <td>${train.actual_track || ''}</td>
+                                 <td><input type="checkbox" disabled ${train.is_assigned ? 'checked' : ''}></td>`;
+                tbody.appendChild(row);
+            });
+            if (changedRows.length > 0 && lastData.length > 0) {
+                showAlert('Train data updated!');
+            }
+            lastData = trains;
+        }
+
+        function directionText(dir) {
+            if (dir === "N") return "Northbound";
+            if (dir === "S") return "Southbound";
+            return dir;
+        }
+
+        function startPolling() {
+            const line = document.getElementById('line-select').value;
+            fetchTrains(line);
+            if (polling) clearInterval(polling);
+            polling = setInterval(() => fetchTrains(line), 15000);
+        }
+
+        document.getElementById('line-select').addEventListener('change', startPolling);
+
+        // Initial load
+        startPolling();
+    </script>
+</body>
+</html>
