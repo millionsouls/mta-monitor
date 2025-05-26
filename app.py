@@ -1,44 +1,83 @@
 from flask import Flask, jsonify, render_template, request
-from nyct_gtfs import NYCTFeed
 from datetime import datetime
+import requests
+import proto.gtfs_realtime_pb2 as gtfs_realtime_pb2
 
 app = Flask(__name__)
 
-def get_train_data(line="A"):
-    feed = NYCTFeed(line)
-    trains = feed.filter_trips(line_id=[line], underway=True)
-    train_list = []
-    
-    for train in trains:
-        if train.stop_time_updates:
-            next_stop = train.stop_time_updates[0]
-            stop_name = getattr(next_stop, "stop_name", next_stop.stop_id)
-            arrival_time = getattr(next_stop, "arrival", None)
-            departure_time = getattr(next_stop, "departure", None)
+# ([list of routes], feed URL)
+ROUTE_FEED_MAP = [
+    (["1", "2", "3", "4", "5", "6", "7", "S"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"),
+    (["A", "C", "E", "SR"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"),
+    (["B", "D", "F", "M", "SF"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm"),
+    (["G"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g"),
+    (["J", "Z"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz"),
+    (["L"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"),
+    (["N", "Q", "R", "W"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw"),
+    (["SIR"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-sir"),
+]
 
-            # Use the time string as-is, or return empty string if None
-            def fmt_time(ts):
-                return ts if ts else ""
+def get_feed_url_for_route(route):
+    route = route.upper()
+    for routes, url in ROUTE_FEED_MAP:
+        if route in routes:
+            return url
+    raise ValueError(f"No feed URL for route {route}")
+
+def fetch_feed(line):
+    url = get_feed_url_for_route(line)
+    resp = requests.get(url)
+    resp.raise_for_status()
+    return resp.content
+
+def fmt_time(ts):
+    if not ts:
+        return ""
+    # epoch seconds to HH:MM:SS
+    try:
+        return datetime.fromtimestamp(ts).strftime("%H:%M:%S")
+    except Exception:
+        return str(ts)
+
+def get_train_data(line="A"):
+    feed_bytes = fetch_feed(line)
+    feed = gtfs_realtime_pb2.FeedMessage()
+    feed.ParseFromString(feed_bytes)
+    train_list = []
+
+    for entity in feed.entity:
+        if not entity.HasField("trip_update"):
+            continue
+        trip_update = entity.trip_update
+        trip_id = trip_update.trip.trip_id
+        direction = getattr(trip_update.trip, "direction_id", "")
+        stop_time_updates = trip_update.stop_time_update
+
+        if stop_time_updates:
+            next_stop = stop_time_updates[0]
+            stop_id = next_stop.stop_id
+            arrival_time = next_stop.arrival.time if next_stop.HasField("arrival") else None
+            departure_time = next_stop.departure.time if next_stop.HasField("departure") else None
 
             train_list.append({
-                "trip_id": train.trip_id,
-                "direction": train.direction,
-                "next_stop": stop_name,
+                "trip_id": trip_id,
+                "direction": direction,
+                "next_stop": stop_id,
                 "departure": fmt_time(departure_time),
                 "arrival": fmt_time(arrival_time),
-                "actual_track": getattr(train, "actual_track", ""),
-                "is_assigned": getattr(train, "is_assigned", False)
+                "actual_track": "",  # NYCT extension: fill if needed
+                "is_assigned": "",   # NYCT extension: fill if needed
             })
         else:
             train_list.append({
-                "trip_id": train.trip_id,
-                "direction": train.direction,
-                "start_time": fmt_time(getattr(train, "start_time", "")),
+                "trip_id": trip_id,
+                "direction": direction,
+                "start_time": fmt_time(getattr(trip_update.trip, "start_time", "")),
                 "next_stop": "No upcoming stops listed.",
                 "departure": "",
                 "arrival": "",
-                "actual_track": getattr(train, "actual_track", ""),
-                "is_assigned": getattr(train, "is_assigned", False)
+                "actual_track": "",
+                "is_assigned": "",
             })
     return train_list
 
