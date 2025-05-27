@@ -3,19 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>MTA Train Monitor</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 1em; }
-        table { border-collapse: collapse; width: 100%; font-size: 13px; }
-        th, td { border: 1px solid #ccc; padding: 3px 6px; text-align: center; }
-        th { background: #f0f0f0; font-weight: normal; }
-        .updated { background: #d1e7dd !important; }
-        #alert { color: #fff; background: #28a745; padding: 7px; display: none; margin-bottom: 0.5em; font-size: 13px; }
-        input[type="checkbox"][disabled]:checked {
-            width: 16px;
-            height: 16px;
-            cursor: not-allowed;
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
     <h1>MTA Train Monitor</h1>
@@ -58,120 +46,32 @@
         <thead id="table-head"></thead>
         <tbody id="table-body"></tbody>
     </table>
-    <script>
-        let lastData = [];
 
-        function showAlert(msg) {
-            const alertDiv = document.getElementById('alert');
-            alertDiv.textContent = msg;
-            alertDiv.style.display = 'block';
-            setTimeout(() => { alertDiv.style.display = 'none'; }, 3000);
-        }
-
-        function diffData(newData, oldData) {
-            let changed = [];
-            newData.forEach((row, i) => {
-                if (!oldData[i] ||
-                    row.trip_id !== oldData[i].trip_id ||
-                    row.next_stop !== oldData[i].next_stop ||
-                    row.arrival !== oldData[i].arrival) {
-                    changed.push(i);
-                }
-            });
-            return changed;
-        }
-
-        function renderTable(mode, trains) {
-            const thead = document.getElementById('table-head');
-            const tbody = document.getElementById('table-body');
-            tbody.innerHTML = '';
-            if (mode === 'subway') {
-                thead.innerHTML = `<tr>
-                    <th>Route</th>
-                    <th>Trip ID</th>
-                    <th>Train ID</th>
-                    <th>Direction</th>
-                    <th>Next Stop</th>
-                    <th>Departure</th>
-                    <th>Arrival</th>
-                    <th>Actual Track</th>
-                    <th>Assigned</th>
-                </tr>`;
-            } else {
-                thead.innerHTML = `<tr>
-                    <th>Route</th>
-                    <th>Trip ID</th>
-                    <th>Next Stop</th>
-                    <th>Departure</th>
+    <!-- Schedule Modal -->
+    <div id="schedule-modal" style="display:none;">
+        <header>
+            <h2>Train Schedule</h2>
+        </header>
+        <table id="schedule-table">
+            <thead>
+                <tr>
+                    <th>Sequence</th>
+                    <th>Stop ID</th>
+                    <th>Stop Name</th>
+                    <th>Scheduled</th>
                     <th>Arrival</th>
                     <th>Track</th>
                     <th>Status</th>
-                </tr>`;
-                // Sort LIRR trains by route_name descending
-                trains.sort((a, b) => a.route_name.localeCompare(b.route_name));
-            }
-            const changedRows = diffData(trains, lastData);
-            trains.forEach((train, i) => {
-                const row = document.createElement('tr');
-                if (changedRows.includes(i)) row.classList.add('updated');
-                if (mode === 'subway') {
-                    row.innerHTML = `<td>${train.trip_name}</td>
-                        <td>${train.trip_id}</td>
-                        <td>${train.train_id}</td>
-                        <td>${train.direction}</td>
-                        <td>${train.next_stop_name}</td>
-                        <td>${train.departure}</td>
-                        <td>${train.arrival}</td>
-                        <td>${train.actual_track || ''}</td>
-                        <td><input type="checkbox" disabled ${train.is_assigned ? 'checked' : ''}></td>`;
-                } else {
-                    row.innerHTML = `<td>${train.route_name}</td>
-                        <td>${train.trip_id}</td>
-                        <td>${train.next_stop_name}</td>
-                        <td>${train.departure}</td>
-                        <td>${train.arrival}</td>
-                        <td>${train.track || ''}</td>
-                        <td>${train.status || ''}</td>`;
-                }
-                tbody.appendChild(row);
-                // Color the row AFTER appending
-                if (mode !== 'subway') {
-                    row.style.setProperty('background-color', train.route_color.startsWith('#') ? train.route_color : ('#' + train.route_color), 'important');
-                    row.style.setProperty('color', train.route_text_color.startsWith('#') ? train.route_text_color : ('#' + train.route_text_color), 'important');
-                }else {
-                    row.style.setProperty('background-color', train.route_color, 'important');
-                    row.style.setProperty('color', train.route_text_color, 'important');
-                }
-            });
-            if (changedRows.length > 0 && lastData.length > 0) {
-                showAlert('Train data updated!');
-            }
-            lastData = trains;
-        }
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <footer>
+            <button onclick="closeSchedule()">Close</button>
+        </footer>
+    </div>
+    <div id="modal-backdrop" style="display:none;" onclick="closeSchedule()"></div>
 
-        function loadTrains() {
-            const mode = document.getElementById('mode').value;
-            let url = '';
-            if (mode === 'subway') {
-                const line = document.getElementById('line').value;
-                url = `/api/nyct/trains?line=${encodeURIComponent(line)}`;
-            } else {
-                url = `/api/lirr/trains`;
-            }
-            fetch(url)
-                .then(r => r.json())
-                .then(data => {
-                    renderTable(mode, data);
-                });
-        }
-
-        function toggleLineInput() {
-            const mode = document.getElementById('mode').value;
-            document.getElementById('subway-line-span').style.display = (mode === 'subway') ? 'inline' : 'none';
-        }
-
-        // Initialize on page load
-        toggleLineInput();
-    </script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
