@@ -1,13 +1,20 @@
 from flask import Flask, jsonify, render_template, request
-from nyct_refs import (fmt_time,NYCTFeed, NYCTStaticData)
-from lirr_refs import (
-    fmt_time as lirr_fmt_time, LIRRFeed, fetch_lirr_feed, LIRRStaticData
-)
+from nyct_refs import (NYCTFeed, NYCTStaticData)
+from lirr_refs import ( LIRRFeed, LIRRStaticData)
+from datetime import datetime
 
 app = Flask(__name__)
 LIRR_STATIC = LIRRStaticData()
 NYCT_STATIC = NYCTStaticData()
 
+def fmt_time(ts):
+    if not ts:
+        return ""
+    try:
+        return datetime.fromtimestamp(ts).strftime("%H:%M:%S")
+    except Exception:
+        return str(ts)
+    
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -26,10 +33,10 @@ def api_nyct_trains():
         # Only filter by line if not "ALL"
         if line != "ALL" and hasattr(trip.trip, "route_id") and trip.trip.route_id.upper() != line:
             continue
-
+        
+        color_info = NYCT_STATIC.get_colors(trip.trip.route_id)
         if trip.stop_time_updates:
             stu = trip.stop_time_updates[0]
-            color_info = NYCT_STATIC.get_colors(trip.trip.route_id)
             train_list.append({
                 "route_id": trip.trip.route_id,
                 "route_color": color_info["color"],
@@ -69,73 +76,37 @@ def api_nyct_trains():
 
 @app.route("/api/lirr/trains")
 def api_lirr_trains():
-    feed_bytes = fetch_lirr_feed()
-    feed = LIRRFeed(feed_bytes)
+    line = request.args.get("line", "ALL").upper()
+    feed = LIRRFeed(line)
+    if feed is None:
+        return
+
+    #for entity in feed.feed.entity:
+    #   print(entity) 
+
     train_list = []
     for trip in feed.trips:
-        trip_id = trip.id
-        route_info = LIRR_STATIC.get_route_info_by_trip(trip_id)
+        if line != "ALL" and hasattr(trip.trip, "route_id") and trip.trip.route_id.upper() != line:
+            continue
+        
+        color_info = LIRR_STATIC.get_colors(trip.trip.route_id)
         if trip.stop_time_updates:
-            next_stop = trip.stop_time_updates[0]
+            stu = [s.to_dict() for s in trip.stop_time_updates]
             train_list.append({
-                "route_name": route_info["name"],
-                "route_color": route_info["color"],
-                "route_text_color": route_info["text_color"],
-                "trip_id": trip_id,
-                "next_stop": next_stop.stop_id,
-                "next_stop_name": LIRR_STATIC.get_station_name(next_stop.stop_id),
-                "departure": next_stop.departure,
-                "arrival": next_stop.arrival,
-                "track": next_stop.track,
-                "status": next_stop.train_status,
+                "route_name": LIRR_STATIC.get_headsign(trip.trip.route_id),
+                "route_color": color_info["color"],
+                "route_text_color": color_info["text_color"],
+                "trip_id": trip.id,
+                "stu": stu,
             })
         else:
             train_list.append({
-                "route_name": route_info["name"],
-                "route_color": route_info["color"],
-                "route_text_color": route_info["text_color"],
-                "trip_id": trip_id,
-                "next_stop": "000",
-                "next_stop_name": "N/A",
-                "departure": "",
-                "arrival": "",
-                "track": "",
-                "status": "",
+                "route_name":trip.trip.route_id,
+                "route_color": color_info["color"],
+                "route_text_color": color_info["text_color"],
+                "trip_id": trip.id,
             })
     return jsonify(train_list)
-
-@app.route("/api/lirr/vehicles")
-def api_lirr_vehicles():
-    feed_bytes = fetch_lirr_feed()
-    feed = LIRRFeed(feed_bytes)
-    vehicles = []
-    for vehicle in feed.vehicles:
-        vehicles.append({
-            "trip_id": vehicle.trip_id,
-            "current_status": vehicle.current_status,
-            "stop_id": vehicle.stop_id,
-            "stop_name": LIRR_STATIC.get_station_name(vehicle.stop_id),
-            "timestamp": lirr_fmt_time(vehicle.timestamp),
-        })
-    return jsonify(vehicles)
-
-@app.route("/api/lirr/alerts")
-def api_lirr_alerts():
-    feed_bytes = fetch_lirr_feed()
-    feed = LIRRFeed(feed_bytes)
-    alerts = []
-    for alert in feed.alerts:
-        alerts.append({
-            "header_text": alert.header_text,
-            "description_text": alert.description_text,
-            "effect": alert.effect,
-        })
-    return jsonify(alerts)
-
-@app.route("/api/lirr/stops")
-def api_lirr_stops():
-    stops = [{"stop_id": k, "stop_name": v} for k, v in LIRR_STATIC.stop_names.items()]
-    return jsonify(stops)
 
 if __name__ == "__main__":
     app.run(debug=True)
