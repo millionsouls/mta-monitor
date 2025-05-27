@@ -3,6 +3,7 @@ import proto.gtfs_realtime_NYCT_pb2 as gtfs_realtime_nyct_pb2
 from datetime import datetime
 import csv
 import os
+import requests
 
 def fmt_time(ts):
     if not ts:
@@ -12,7 +13,7 @@ def fmt_time(ts):
     except Exception:
         return str(ts)
 
-def load_stop_names(filepath="gtfs/stops.txt"):
+def load_stop_names(filepath="static/nyct/stops.txt"):
     stop_names = {}
     if not os.path.exists(filepath):
         return stop_names
@@ -103,10 +104,11 @@ class NYCTStopTimeUpdate:
     def __init__(self, stu):
         self.stu = stu
         self.stop_id = stu.stop_id
-        self.arrival_time = stu.arrival.time if stu.HasField("arrival") else None
-        self.departure_time = stu.departure.time if stu.HasField("departure") else None
-        self.actual_track = ""
-        self.is_assigned = ""
+        self.arrival = stu.arrival.time if stu.HasField("arrival") else None
+        self.departure = stu.departure.time if stu.HasField("departure") else None
+        self.track = getattr(stu, "track", "")
+        print(self.track)
+        self.is_assigned = getattr(stu, "is_assigned", False)
         if stu.HasExtension(gtfs_realtime_nyct_pb2.nyct_stop_time_update):
             nyct_update = stu.Extensions[gtfs_realtime_nyct_pb2.nyct_stop_time_update]
             self.actual_track = getattr(nyct_update, "actual_track", "")
@@ -126,3 +128,62 @@ class NYCTAlert:
         self.header_text = alert.header_text.translation[0].text if alert.header_text.translation else ""
         self.description_text = alert.description_text.translation[0].text if alert.description_text.translation else ""
         self.effect = alert.effect
+
+ROUTE_FEED_MAP = [
+    (["1", "2", "3", "4", "5", "6", "7", "S"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"),
+    (["A", "C", "E", "SR"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"),
+    (["B", "D", "F", "M", "SF"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm"),
+    (["G"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g"),
+    (["J", "Z"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz"),
+    (["L"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"),
+    (["N", "Q", "R", "W"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw"),
+    (["SIR"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-sir"),
+]
+
+def get_feed_url_for_route(route):
+    route = route.upper()
+    for routes, url in ROUTE_FEED_MAP:
+        if route in routes:
+            return url
+    raise ValueError(f"No feed URL for route {route}")
+
+def fetch_feed(line):
+    url = get_feed_url_for_route(line)
+    resp = requests.get(url)
+    resp.raise_for_status()
+    return resp.content
+
+class NYCTStaticData:
+    def __init__(self, routes_fp="static/nyct/routes.txt", trips_fp="static/nyct/trips.txt"):
+        self.routes = self._load_routes(routes_fp)
+        self.trips = self._load_trips(trips_fp)
+
+    def _load_routes(self, filepath):
+        routes = {}
+        if not os.path.exists(filepath):
+            return routes
+        with open(filepath, newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                routes[row["route_id"].strip()] = row["route_long_name"].strip()
+        return routes
+
+    def _load_trips(self, filepath):
+        trip_to_route = {}
+        if not os.path.exists(filepath):
+            return trip_to_route
+        with open(filepath, newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                trip_to_route[row["trip_id"].strip()] = row["route_id"].strip()
+        return trip_to_route
+
+    def get_route_long_name_by_trip(self, trip_id):
+        route_id = self.trips.get(trip_id)
+        if not route_id:
+            # Fallback: find a trip_id that ends with the given trip_id
+            for k, v in self.trips.items():
+                if k.endswith(trip_id):
+                    route_id = v
+                    break
+        return self.routes.get(route_id, "Unknown")

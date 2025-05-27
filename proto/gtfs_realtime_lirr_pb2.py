@@ -22,7 +22,7 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 _sym_db = _symbol_database.Default()
 
 
-import gtfs_realtime_pb2 as gtfs__realtime__pb2
+from . import gtfs_realtime_pb2 as gtfs__realtime__pb2
 
 
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x18gtfs-realtime-lirr.proto\x12\x10transit_realtime\x1a\x13gtfs-realtime.proto\"?\n\x19MtaRailroadStopTimeUpdate\x12\r\n\x05track\x18\x01 \x01(\t\x12\x13\n\x0btrainStatus\x18\x02 \x01(\t\"\xe9\x03\n\x1aMtaRailroadCarriageDetails\x12\x1b\n\x10\x62icycles_allowed\x18\x01 \x01(\x05:\x01\x30\x12\x16\n\x0e\x63\x61rriage_class\x18\x02 \x01(\t\x12j\n\x0equiet_carriage\x18\x03 \x01(\x0e\x32:.transit_realtime.MtaRailroadCarriageDetails.QuietCarriage:\x16UNKNOWN_QUIET_CARRIAGE\x12s\n\x11toilet_facilities\x18\x04 \x01(\x0e\x32=.transit_realtime.MtaRailroadCarriageDetails.ToiletFacilities:\x19UNKNOWN_TOILET_FACILITIES\"W\n\rQuietCarriage\x12\x1a\n\x16UNKNOWN_QUIET_CARRIAGE\x10\x00\x12\x12\n\x0eQUIET_CARRIAGE\x10\x01\x12\x16\n\x12NOT_QUIET_CARRIAGE\x10\x02\"\\\n\x10ToiletFacilities\x12\x1d\n\x19UNKNOWN_TOILET_FACILITIES\x10\x00\x12\x12\n\x0eTOILET_ONBOARD\x10\x01\x12\x15\n\x11NO_TOILET_ONBOARD\x10\x02:\x80\x01\n\x1dmta_railroad_stop_time_update\x12+.transit_realtime.TripUpdate.StopTimeUpdate\x18\xed\x07 \x01(\x0b\x32+.transit_realtime.MtaRailroadStopTimeUpdate:\x87\x01\n\x1dmta_railroad_carriage_details\x12\x31.transit_realtime.VehiclePosition.CarriageDetails\x18\xed\x07 \x01(\x0b\x32,.transit_realtime.MtaRailroadCarriageDetailsB\x1d\n\x1b\x63om.google.transit.realtime')
