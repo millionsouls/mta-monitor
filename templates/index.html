@@ -11,7 +11,6 @@
         .updated { background: #d1e7dd !important; }
         #alert { color: #fff; background: #28a745; padding: 7px; display: none; margin-bottom: 0.5em; font-size: 13px; }
         input[type="checkbox"][disabled]:checked {
-            accent-color: #007bff;
             width: 16px;
             height: 16px;
             cursor: not-allowed;
@@ -28,6 +27,7 @@
     <span id="subway-line-span">
         <label for="line">Line:</label>
         <select id="line">
+            <option value="ALL">All</option>
             <option value="A">A</option>
             <option value="B">B</option>
             <option value="C">C</option>
@@ -87,8 +87,9 @@
             tbody.innerHTML = '';
             if (mode === 'subway') {
                 thead.innerHTML = `<tr>
-                    <th>Route Name</th>
+                    <th>Route</th>
                     <th>Trip ID</th>
+                    <th>Train ID</th>
                     <th>Direction</th>
                     <th>Next Stop</th>
                     <th>Departure</th>
@@ -114,8 +115,9 @@
                 const row = document.createElement('tr');
                 if (changedRows.includes(i)) row.classList.add('updated');
                 if (mode === 'subway') {
-                    row.innerHTML = `<td>${train.route_long_name}</td>
+                    row.innerHTML = `<td>${train.trip_name}</td>
                         <td>${train.trip_id}</td>
+                        <td>${train.train_id}</td>
                         <td>${train.direction}</td>
                         <td>${train.next_stop_name}</td>
                         <td>${train.departure}</td>
@@ -136,6 +138,9 @@
                 if (mode !== 'subway') {
                     row.style.setProperty('background-color', train.route_color.startsWith('#') ? train.route_color : ('#' + train.route_color), 'important');
                     row.style.setProperty('color', train.route_text_color.startsWith('#') ? train.route_text_color : ('#' + train.route_text_color), 'important');
+                }else {
+                    row.style.setProperty('background-color', train.route_color, 'important');
+                    row.style.setProperty('color', train.route_text_color, 'important');
                 }
             });
             if (changedRows.length > 0 && lastData.length > 0) {
@@ -149,7 +154,7 @@
             let url = '';
             if (mode === 'subway') {
                 const line = document.getElementById('line').value;
-                url = `/api/trains?line=${encodeURIComponent(line)}`;
+                url = `/api/nyct/trains?line=${encodeURIComponent(line)}`;
             } else {
                 url = `/api/lirr/trains`;
             }
