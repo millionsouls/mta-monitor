@@ -1,6 +1,5 @@
 import proto.gtfs_realtime_pb2 as gtfs_realtime_pb2
 import proto.gtfs_realtime_NYCT_pb2 as gtfs_realtime_nyct_pb2
-from datetime import datetime
 import csv
 import os
 import requests
@@ -46,7 +45,7 @@ FeedMessage
 TRIPS = {}
 STOP_NAMES = {}
 ROUTE_COLORS = {}
-ROUTE_FEED_MAP = [
+FEED_URLS = [
     (["1", "2", "3", "4", "5", "6", "7", "S"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"),
     (["A", "C", "E", "SR"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"),
     (["B", "D", "F", "M", "SF"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm"),
@@ -56,14 +55,6 @@ ROUTE_FEED_MAP = [
     (["N", "Q", "R", "W"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw"),
     (["SIR"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-sir"),
 ]
-
-def fmt_time(ts):
-    if not ts:
-        return ""
-    try:
-        return datetime.fromtimestamp(ts).strftime("%H:%M:%S")
-    except Exception:
-        return str(ts)
 
 def get_station_name(stop_id):
     stop_id = stop_id.strip()
@@ -79,14 +70,14 @@ def fetch_feed(line):
 
     # If "ALL", fetch all feeds and concatenate entities
     if line == "ALL":
-        for routes, url in ROUTE_FEED_MAP:
+        for routes, url in FEED_URLS:
             resp = requests.get(url)
             resp.raise_for_status()
             feeds.append(resp.content)
         return feeds  # Return a list of bytes for all feeds
 
     # Otherwise, fetch the feed for the specific line
-    for routes, url in ROUTE_FEED_MAP:
+    for routes, url in FEED_URLS:
         if line in routes:
             resp = requests.get(url)
             resp.raise_for_status()
