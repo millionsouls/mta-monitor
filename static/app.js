@@ -41,11 +41,7 @@ function renderTable(mode, trains) {
         thead.innerHTML = `<tr>
             <th>Route</th>
             <th>Trip ID</th>
-            <th>Next Stop</th>
-            <th>Departure</th>
-            <th>Arrival</th>
-            <th>Track</th>
-            <th>Status</th>
+            <th>Schedule</th>
         </tr>`;
         trains.sort((a, b) => a.route_name.localeCompare(b.route_name));
     }
