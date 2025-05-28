@@ -54,14 +54,14 @@ Contains `nyct_trip_descriptor`
 | `start_time` string  | UNIX time service begins |
 | `start_date` | string  | Service date in `YYYYMMDD` format |
 | `schedule_relationship` | enum | Status of the trip |
-### NYCT Extension: `nyct_trip_descriptor`
+#### NYCT Extension: `nyct_trip_descriptor`
 | Field | Type | Description |
 | --- | --- | --- |
 | `is_assigned` | boolean | Whether the trip is currently assigned to a train |
 | `train_id`    | string  | Internal train identifier                         |
 | `direction`   | enum    | Direction of travel (`NORTH`, `SOUTH`)           |
 
-### `stop_time_update[]` (StopTimeUpdate)
+#### `stop_time_update[]` (StopTimeUpdate)
 Each object represents timing info for a stop in the trip.
 
 | Field | Type | Description |
@@ -112,7 +112,7 @@ Attached as an extension to the `FeedHeader`.
 | `route_id` | stirng | Name of the route |
 | `direction_id` | int | direction of travel |
 
-### trip_update.stop_time_update[]
+#### trip_update.stop_time_update[]
 Requires protobuf extension. Array, each entry repsents one stop
 | Field | Type | Description |
 | --- | --- | --- |
@@ -124,7 +124,7 @@ Requires protobuf extension. Array, each entry repsents one stop
 | `stop_id` | string | Station identifier, refer to [stops.txt](static/lirr/stops.txt)
 | 'mta_railroad_stop_time_update' | object | Contains track and train status data |
 
-### trip_update.timestemp
+#### trip_update.timestemp
 | Field | Type | Description |
 | --- | --- | --- |
 | `timestamp` | int | Update time |
