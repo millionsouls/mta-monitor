@@ -18,6 +18,7 @@ import proto.gtfs_realtime_lirr_pb2 as gtfs_realtime_lirr_pb2
     "stop_time_update": [
       {
         "stop_sequence": 1,
+        "arrival": { "delay": 0, "time": 1748385720 },
         "departure": { "delay": 0, "time": 1748385720 },
         "stop_id": "14",
         "schedule_relationship": "SCHEDULED",
@@ -33,6 +34,7 @@ import proto.gtfs_realtime_lirr_pb2 as gtfs_realtime_lirr_pb2
 }
 '''
 ROUTES = {}
+SCHEDULE = {}
 STOP_NAMES = {}
 ROUTE_COLORS = {}
 FEED_URL = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/lirr%2Fgtfs-lirr"
@@ -81,7 +83,7 @@ class LIRRTrip:
     def __init__(self, trip_update):
         self.trip_update = trip_update
         self.trip = trip_update.trip
-        self.stop_time_updates = [LIRRStopTimeUpdate(stu) for stu in trip_update.stop_time_update]
+        self.stop_time_updates = [LIRRStopTimeUpdate(stu, self.trip) for stu in trip_update.stop_time_update]
         self.direction = self.trip.direction_id
 
     @property
@@ -97,7 +99,7 @@ class LIRRTrip:
         return getattr(self.trip, "start_time", "")
 
 class LIRRStopTimeUpdate:
-    def __init__(self, stu):
+    def __init__(self, stu, trip):
         self.stu = stu
         self.stop_sequence = getattr(stu, "stop_sequence", None)
         self.stop_id = getattr(stu, "stop_id", "")
@@ -113,7 +115,7 @@ class LIRRStopTimeUpdate:
             self.track = getattr(lirr_update, "track", "")
             self.train_status = getattr(lirr_update, "trainStatus", "")
     
-    def to_dict(self):
+    def to_dict(self, trip):
         return {
             "stop_sequence": self.stop_sequence,
             "stop_id": self.stop_id,
@@ -123,6 +125,7 @@ class LIRRStopTimeUpdate:
             "ddelay": self.stu.departure.delay,
             "departure": self.departure,
             "schedule_relationship": self.schedule_relationship,
+            "scheduled": LIRRStaticData.get_schedule(self, trip.id, self.stop_sequence),
             "track": self.track,
             "train_status": self.train_status,
         }
@@ -144,6 +147,7 @@ class LIRRStaticData:
         self._load_routes()
         self._load_stop_names()
         self._load_route_colors()
+        self._load_schedule()
 
     def _load_routes(self, filepath="static/lirr/routes.txt"):
         if not os.path.exists(filepath):
@@ -182,11 +186,32 @@ class LIRRStaticData:
                     "text_color": text_color
                 }
 
+    def _load_schedule(self, filepath="static/lirr/stop_times.txt"):
+        if not os.path.exists(filepath):
+            print("Failed to find schedule.txt for LIRR")
+            return
+        with open(filepath, newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                trip_id = row["trip_id"].strip()
+                stop_sequence = int(row["stop_sequence"])
+                arrival_time = row["arrival_time"].strip()
+
+                SCHEDULE[(trip_id, stop_sequence)] = arrival_time
+
     def get_headsign(self, route_id):
         for id, head in ROUTES.items():
             if route_id in id:
                 return head
         return route_id
+    
+    def get_schedule(self, trip_id, stop_sequence):
+        # stop_sequence may be string or int, so ensure int for lookup
+        try:
+            stop_sequence = int(stop_sequence)
+        except Exception:
+            pass
+        return SCHEDULE.get((trip_id, stop_sequence), "")
     
     def get_colors(self, route_id):
         return ROUTE_COLORS.get(route_id, {"color": "#FFFFFF", "text_color": "#000000"})

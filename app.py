@@ -79,10 +79,7 @@ def api_lirr_trains():
     line = request.args.get("line", "ALL").upper()
     feed = LIRRFeed(line)
     if feed is None:
-        return
-
-    #for entity in feed.feed.entity:
-    #   print(entity) 
+        return 
 
     train_list = []
     for trip in feed.trips:
@@ -91,7 +88,7 @@ def api_lirr_trains():
         
         color_info = LIRR_STATIC.get_colors(trip.trip.route_id)
         if trip.stop_time_updates:
-            stu = [s.to_dict() for s in trip.stop_time_updates]
+            stu = [s.to_dict(trip) for s in trip.stop_time_updates]
             train_list.append({
                 "route_name": LIRR_STATIC.get_headsign(trip.trip.route_id),
                 "route_color": color_info["color"],
