@@ -149,7 +149,7 @@ class LIRRStaticData:
         self._load_route_colors()
         self._load_schedule()
 
-    def _load_routes(self, filepath="static/lirr/routes.txt"):
+    def _load_routes(self, filepath="data/lirr/routes.txt"):
         if not os.path.exists(filepath):
             print("Failed to find trips.txt for LIRR")
             return
@@ -159,7 +159,7 @@ class LIRRStaticData:
                 ROUTES[row['route_id'].strip()] = row['route_long_name'].strip()
         print("Trips loaded for LIRR:", len(ROUTES))
 
-    def _load_stop_names(self, filepath="static/lirr/stops.txt"):
+    def _load_stop_names(self, filepath="data/lirr/stops.txt"):
         if not os.path.exists(filepath):
             print("Failed to find stops.txt for LIRR")
             return
@@ -171,7 +171,7 @@ class LIRRStaticData:
             print("Station names loaded for LIRR:", len(STOP_NAMES))
 
     
-    def _load_route_colors(self, filepath="static/lirr/routes.txt"):
+    def _load_route_colors(self, filepath="data/lirr/routes.txt"):
         if not os.path.exists(filepath):
             print("Failed to find routes.txt for LIRR")
             return
@@ -186,7 +186,7 @@ class LIRRStaticData:
                     "text_color": text_color
                 }
 
-    def _load_schedule(self, filepath="static/lirr/stop_times.txt"):
+    def _load_schedule(self, filepath="data/lirr/stop_times.txt"):
         if not os.path.exists(filepath):
             print("Failed to find schedule.txt for LIRR")
             return

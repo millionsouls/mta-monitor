@@ -2,6 +2,9 @@ from flask import Flask, jsonify, render_template, request
 from nyct_refs import (NYCTFeed, NYCTStaticData)
 from lirr_refs import ( LIRRFeed, LIRRStaticData)
 from datetime import datetime
+from updater import run_updates
+
+run_updates()
 
 app = Flask(__name__)
 LIRR_STATIC = LIRRStaticData()
@@ -105,4 +108,4 @@ def api_lirr_trains():
     return jsonify(train_list)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=False)

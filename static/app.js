@@ -123,7 +123,7 @@ function showSchedule(index) {
                 <td>${stop.stop_sequence}</td>
                 <td>${stop.stop_id}</td>
                 <td>${stop.stop_name}</td>
-                <td>${formatTime(stu.scheduled)}</td>
+                <td>${formatTime(train.stu.scheduled)}</td>
                 <td>${formatTime(stop.arrival)}</td>
                 <td>${stop.track || ''}</td>
                 <td>${stop.train_status || ''}</td>

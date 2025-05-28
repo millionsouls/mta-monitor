@@ -187,7 +187,7 @@ class NYCTStaticData:
         self._load_stop_names()
         self._load_route_colors()
 
-    def _load_trips(self, filepath="static/nyct/trips.txt"):
+    def _load_trips(self, filepath="data/nyct/trips.txt"):
         if not os.path.exists(filepath):
             print("Failed to find trips.txt for NYCT")
             return
@@ -197,7 +197,7 @@ class NYCTStaticData:
                 TRIPS[row['trip_id'].strip()] = row['trip_headsign'].strip()
         print("Trips loaded for NYCT:", len(TRIPS))
 
-    def _load_stop_names(self, filepath="static/nyct/stops.txt"):
+    def _load_stop_names(self, filepath="data/nyct/stops.txt"):
         if not os.path.exists(filepath):
             print("Failed to find stops.txt for NYCT")
             return
@@ -208,7 +208,7 @@ class NYCTStaticData:
 
             print("Station names loaded for NYCT:", len(STOP_NAMES))
 
-    def _load_route_colors(self, filepath="static/nyct/routes.txt"):
+    def _load_route_colors(self, filepath="data/nyct/routes.txt"):
         if not os.path.exists(filepath):
             print("Failed to find routes.txt for NYCT")
             return
