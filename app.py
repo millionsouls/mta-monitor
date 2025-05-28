@@ -73,7 +73,6 @@ def api_nyct_trains():
     return jsonify(train_list)
 
 # --- LIRR Endpoints ---
-
 @app.route("/api/lirr/trains")
 def api_lirr_trains():
     line = request.args.get("line", "ALL").upper()
