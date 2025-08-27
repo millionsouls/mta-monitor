@@ -185,9 +185,9 @@ stop_id,stop_name,stop_lat,stop_lon,location_type,parent_station
 226,116 St,40.802098,-73.949625,1,
 226N,116 St,40.802098,-73.949625,,226
 226S,116 St,40.802098,-73.949625,,226
-227,Central Park North (110 St),40.799075,-73.951822,1,
-227N,Central Park North (110 St),40.799075,-73.951822,,227
-227S,Central Park North (110 St),40.799075,-73.951822,,227
+227,110 St-Malcolm X Plaza,40.799075,-73.951822,1,
+227N,110 St-Malcolm X Plaza,40.799075,-73.951822,,227
+227S,110 St-Malcolm X Plaza,40.799075,-73.951822,,227
 228,Park Place,40.713051,-74.008811,1,
 228N,Park Place,40.713051,-74.008811,,228
 228S,Park Place,40.713051,-74.008811,,228

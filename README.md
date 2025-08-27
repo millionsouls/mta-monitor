@@ -15,6 +15,7 @@ Running the app
 ```
 python app.py
 ```
+Some possible compatibility errors
 
 ## Structure
 ### NYCT (Subway)

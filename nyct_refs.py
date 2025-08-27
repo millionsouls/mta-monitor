@@ -1,5 +1,5 @@
-import proto.gtfs_realtime_pb2 as gtfs_realtime_pb2
-import proto.gtfs_realtime_NYCT_pb2 as gtfs_realtime_nyct_pb2
+from proto import gtfs_realtime_pb2
+from proto import gtfs_realtime_NYCT_pb2
 import csv
 import os
 import requests
@@ -145,9 +145,9 @@ class NYCTTrip:
         #     Note: Origin times will not change when there is a trip type change.
         #   - This is followed by a three character “Origin Location” / “Destination Location”.
         # See: https://www.mta.info/document/134521
-        if self.trip.HasExtension(gtfs_realtime_nyct_pb2.nyct_trip_descriptor):
-            self.nyct_trip = self.trip.Extensions[gtfs_realtime_nyct_pb2.nyct_trip_descriptor]
-            self.direction = gtfs_realtime_nyct_pb2.NyctTripDescriptor.Direction.Name(self.nyct_trip.direction)
+        if self.trip.HasExtension(gtfs_realtime_NYCT_pb2.nyct_trip_descriptor):
+            self.nyct_trip = self.trip.Extensions[gtfs_realtime_NYCT_pb2.nyct_trip_descriptor]
+            self.direction = gtfs_realtime_NYCT_pb2.NyctTripDescriptor.Direction.Name(self.nyct_trip.direction)
             self.assigned = self.nyct_trip.is_assigned
             # self.direction = self.nyct_trip.direction
             # self.train_id = self.nyct_trip.train_id
@@ -171,8 +171,8 @@ class NYCTStopTimeUpdate:
         self.arrival = stu.arrival.time if stu.HasField("arrival") else None
         self.departure = stu.departure.time if stu.HasField("departure") else None
 
-        if stu.HasExtension(gtfs_realtime_nyct_pb2.nyct_stop_time_update):
-            self.nyct_update = stu.Extensions[gtfs_realtime_nyct_pb2.nyct_stop_time_update]
+        if stu.HasExtension(gtfs_realtime_NYCT_pb2.nyct_stop_time_update):
+            self.nyct_update = stu.Extensions[gtfs_realtime_NYCT_pb2.nyct_stop_time_update]
             self.actual_track = self.nyct_update.actual_track
 
 # PLACEHOLDER
