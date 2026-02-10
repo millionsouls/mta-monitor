@@ -1,6 +1,6 @@
 # Viewing MTA information from subways to LIRR
 
-**MTA Monitor** is a web applications that displays real time train information for New York's MTA system (NYCT, LIRR, MNR). This utilizes the MTA's GTFS-RT feeds and presents the data on a webpage using Flask. 
+**MTA Monitor** is a web application that displays train information for New York's MTA system (NYCT, LIRR, MNR). This utilizes the MTA's GTFS-RT feeds and presents the data on a webpage using Flask.
 
 **MTA ToS for RT Feeds:** https://www.mta.info/developers/terms-and-conditions
 

@@ -1,5 +1,9 @@
 let lastData = [];
 let lastLirrData = [];
+let lastUpdateTs = null; // unix seconds
+let searchQuery = '';
+let sortByArrival = true; // default on
+let sortAsc = true;
 
 function showAlert(msg) {
     const alertDiv = document.getElementById('alert');
@@ -19,6 +23,31 @@ function diffData(newData, oldData) {
         }
     });
     return changed;
+}
+
+function fuzzyMatch(needle, hay) {
+    if (!needle) return true;
+    needle = needle.toLowerCase();
+    hay = (hay||'').toLowerCase();
+    // simple fuzzy
+    let i = 0, j = 0;
+    while (i < needle.length && j < hay.length) {
+        if (needle[i] === hay[j]) i++;
+        j++;
+    }
+    return i === needle.length;
+}
+
+function getContrastColor(hex) {
+    if (!hex) return '#000';
+    if (hex[0] === '#') hex = hex.slice(1);
+    if (hex.length === 3) hex = hex.split('').map(c=>c+c).join('');
+    const r = parseInt(hex.substr(0,2),16);
+    const g = parseInt(hex.substr(2,2),16);
+    const b = parseInt(hex.substr(4,2),16);
+    // relative luminance
+    const yiq = (r*299 + g*587 + b*114) / 1000;
+    return yiq >= 128 ? '#000' : '#fff';
 }
 
 function renderTable(mode, trains) {
@@ -45,41 +74,58 @@ function renderTable(mode, trains) {
         </tr>`;
         trains.sort((a, b) => a.route_name.localeCompare(b.route_name));
     }
-    const changedRows = diffData(trains, lastData);
-    trains.forEach((train, i) => {
+    // apply fuzzy search filter
+    let filtered = trains.filter(t => {
+        if (!searchQuery) return true;
+        const hay = [t.trip_name, t.trip_id, t.next_stop_name, t.route_name, t.route_id].join(' ');
+        return fuzzyMatch(searchQuery, hay);
+    });
+
+    // apply sort by arrival
+    if (sortByArrival) {
+        filtered.sort((a,b)=>{
+            const ta = (a.arrival && a.arrival.length>0) ? a.arrival : '99:99:99';
+            const tb = (b.arrival && b.arrival.length>0) ? b.arrival : '99:99:99';
+            if (ta === tb) return 0;
+            if (sortAsc) return ta < tb ? -1 : 1;
+            return ta < tb ? 1 : -1;
+        });
+    }
+
+    const changedRows = diffData(filtered, lastData);
+    filtered.forEach((train, i) => {
         const row = document.createElement('tr');
         if (changedRows.includes(i)) row.classList.add('updated');
         if (mode === 'subway') {
-            row.innerHTML = `<td>${train.trip_name}</td>
-                <td>${train.trip_id}</td>
-                <td>${train.train_id}</td>
-                <td>${train.direction}</td>
-                <td>${train.next_stop_name}</td>
-                <td>${train.departure}</td>
-                <td>${train.arrival}</td>
-                <td>${train.actual_track || ''}</td>
-                <td><input type="checkbox" disabled ${train.is_assigned ? 'checked' : ''}></td>`;
+            // route pill + trip name
+            const routeId = train.route_id || '';
+            const pillColor = (train.route_color || '#888').replace(/^[^#]/, '#');
+            const pillText = routeId || (train.trip_name||'');
+            const pillTextColor = getContrastColor(pillColor.replace('#',''));
+            row.innerHTML = `<td><span class="route-pill" style="background:${pillColor};color:${pillTextColor}">${pillText}</span> <span style="margin-left:8px">${train.trip_name||''}</span></td>
+                <td class="col-trainid">${train.trip_id||''}</td>
+                <td class="col-trainid">${train.train_id||''}</td>
+                <td class="col-direction">${train.direction||''}</td>
+                <td>${train.next_stop_name||''}</td>
+                <td class="col-departure">${train.departure||''}</td>
+                <td>${train.arrival||''}</td>
+                <td class="col-actual-track">${train.actual_track || ''}</td>
+                <td class="col-assigned"><input type="checkbox" disabled ${train.is_assigned ? 'checked' : ''}></td>`;
         } else {
-            row.innerHTML = `<td>${train.route_name}</td>
-                <td>${train.trip_id}</td>
+            const pillColor = (train.route_color || '#888').replace(/^[^#]/, '#');
+            const pillTextColor = getContrastColor(pillColor.replace('#',''));
+            row.innerHTML = `<td><span class="route-pill" style="background:${pillColor};color:${pillTextColor}">${train.route_name||''}</span></td>
+                <td class="col-trainid">${train.trip_id||''}</td>
                 <td>
                     <button onclick="showSchedule(${i})">View Schedule</button>
                 </td>`;
         }
         tbody.appendChild(row);
-        // Color the row AFTER appending
-        if (mode !== 'subway') {
-            row.style.setProperty('background-color', train.route_color.startsWith('#') ? train.route_color : ('#' + train.route_color), 'important');
-            row.style.setProperty('color', train.route_text_color.startsWith('#') ? train.route_text_color : ('#' + train.route_text_color), 'important');
-        } else {
-            row.style.setProperty('background-color', train.route_color, 'important');
-            row.style.setProperty('color', train.route_text_color, 'important');
-        }
     });
     if (changedRows.length > 0 && lastData.length > 0) {
         showAlert('Train data updated!');
     }
-    lastData = trains;
+    lastData = filtered;
     if (mode !== 'subway') {
         lastLirrData = trains; // Save for popup access
     }
@@ -98,7 +144,29 @@ function loadTrains() {
         .then(r => r.json())
         .then(data => {
             renderTable(mode, data);
+            // mark last update time as now (client-side) if server SSE didn't provide one
+            lastUpdateTs = Math.floor(Date.now() / 1000);
+            updateLastUpdatedDisplay();
         });
+}
+
+function onSearchInput(){
+    const v = document.getElementById('search-input').value || '';
+    searchQuery = v.trim();
+}
+
+function toggleSort(){
+    // toggles between arrival sorting on/off and asc/desc
+    if (!sortByArrival) {
+        sortByArrival = true; sortAsc = true;
+        document.getElementById('sort-arrival').textContent = 'Sort: Arrival ↓';
+    } else if (sortByArrival && sortAsc) {
+        sortAsc = false; document.getElementById('sort-arrival').textContent = 'Sort: Arrival ↑';
+    } else {
+        sortByArrival = false; sortAsc = true; document.getElementById('sort-arrival').textContent = 'Sort: Off';
+    }
+    // re-render current view
+    loadTrains();
 }
 
 function toggleLineInput() {
@@ -145,3 +213,88 @@ function formatTime(ts) {
 
 // Initialize on page load
 toggleLineInput();
+
+// Element to display human-friendly last update
+function updateLastUpdatedDisplay() {
+    const el = document.getElementById('last-updated');
+    if (!el) return;
+    if (!lastUpdateTs) {
+        el.textContent = 'Updated: N/A';
+        return;
+    }
+    const now = Math.floor(Date.now() / 1000);
+    const delta = now - lastUpdateTs;
+    let text = '';
+    if (delta < 60) {
+        text = 'Updated: less than a minute ago';
+    } else if (delta < 3600) {
+        const mins = Math.floor(delta / 60);
+        text = `Updated: ${mins} minute${mins===1? '': 's'} ago`;
+    } else if (delta < 7200) {
+        text = 'Updated: an hour ago';
+    } else if (delta < 86400) {
+        const hours = Math.floor(delta / 3600);
+        text = `Updated: ${hours} hours ago`;
+    } else {
+        const days = Math.floor(delta / 86400);
+        text = `Updated: ${days} day${days===1? '': 's'} ago`;
+    }
+    el.textContent = text;
+}
+
+// refresh displayed relative time every 15 seconds
+setInterval(updateLastUpdatedDisplay, 15000);
+
+// SSE listener to auto-refresh when server cache updates
+(() => {
+    let es;
+    const statusEl = document.createElement('div');
+    statusEl.id = 'sse-status';
+    statusEl.style.cssText = 'position:fixed;right:8px;bottom:8px;padding:6px 10px;background:#222;color:#fff;border-radius:6px;font-size:12px;opacity:0.9';
+    statusEl.textContent = 'SSE: connecting...';
+    document.body.appendChild(statusEl);
+
+    function connect() {
+        try {
+            es = new EventSource('/events');
+        } catch (err) {
+            console.warn('SSE connection error', err);
+            statusEl.textContent = 'SSE: error';
+            // retry after a delay
+            setTimeout(connect, 5000);
+            return;
+        }
+
+        es.onopen = () => {
+            console.debug('SSE opened');
+            statusEl.textContent = 'SSE: connected';
+        };
+        es.onmessage = (e) => {
+            try {
+                    const d = JSON.parse(e.data);
+                    console.debug('SSE message', d);
+                    // if server provided a timestamp, use it for the "last updated" display
+                    if (d.timestamp) {
+                        lastUpdateTs = Math.floor(d.timestamp);
+                        updateLastUpdatedDisplay();
+                    }
+                } catch (err) {
+                    // heartbeat or non-json
+                }
+                // When server notifies, refresh visible data
+                loadTrains();
+            // briefly flash status
+            statusEl.textContent = 'SSE: updated';
+            setTimeout(()=> statusEl.textContent = 'SSE: connected', 1000);
+        };
+        es.onerror = (err) => {
+            console.warn('SSE error', err);
+            statusEl.textContent = 'SSE: reconnecting...';
+            es.close();
+            setTimeout(connect, 3000);
+        };
+    }
+
+    // start connection
+    connect();
+})();

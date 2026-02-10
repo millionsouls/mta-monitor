@@ -35,6 +35,13 @@ def run_updates():
 
         print(f"Update detected. Downloading...")
         response = requests.get(url)
+        # Log amount of data downloaded from the GET request
+        try:
+            downloaded_bytes = len(response.content) if response.content is not None else 0
+        except Exception:
+            downloaded_bytes = 0
+        print(f"Downloaded {downloaded_bytes} bytes from {url}")
+
         zip_path = os.path.join(data_dir, f"{name}.zip")
         with open(zip_path, 'wb') as f:
             f.write(response.content)

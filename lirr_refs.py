@@ -3,6 +3,8 @@ import csv
 import requests
 import proto.gtfs_realtime_pb2 as gtfs_realtime_pb2
 import proto.gtfs_realtime_lirr_pb2 as gtfs_realtime_lirr_pb2
+from cache_manager import get_lirr_feed
+import logging
 
 '''
 {
@@ -48,8 +50,18 @@ def get_station_name(stop_id):
     return stop_id
 
 def fetch_lirr_feed():
+    cached = get_lirr_feed()
+    if cached:
+        logging.info("LIRR: returning cached bytes")
+        print("[lirr_refs] using cached bytes for LIRR")
+        return cached
     response = requests.get(FEED_URL)
     response.raise_for_status()
+    try:
+        downloaded_bytes = len(response.content) if response.content is not None else 0
+    except Exception:
+        downloaded_bytes = 0
+    print(f"[lirr_refs] Downloaded {downloaded_bytes} bytes from {FEED_URL}")
     return response.content
 
 class LIRRFeed:

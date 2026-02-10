@@ -1,8 +1,11 @@
 from proto import gtfs_realtime_pb2
 from proto import gtfs_realtime_NYCT_pb2
+import logging
+from cache_manager import get_state as cache_get_state
 import csv
 import os
 import requests
+from cache_manager import get_nyct_feed
 
 '''
 FeedMessage
@@ -65,22 +68,37 @@ def get_station_name(stop_id):
     return stop_id
 
 def fetch_feed(line):
-    line = line.upper()
-    feeds = []
+    # Prefer cache-managed bytes; fall back to direct fetch
+    cached = get_nyct_feed(line)
+    if cached:
+        logging.info(f"NYCT: returning cached bytes for line {line}")
+        print(f"[nyct_refs] using cached bytes for line={line}")
+        return cached
 
-    # If "ALL", fetch all feeds and concatenate entities
+    line = line.upper()
+    # Fallback to direct requests if cache missing
+    feeds = []
     if line == "ALL":
         for routes, url in FEED_URLS:
             resp = requests.get(url)
             resp.raise_for_status()
+            try:
+                downloaded_bytes = len(resp.content) if resp.content is not None else 0
+            except Exception:
+                downloaded_bytes = 0
+            print(f"[nyct_refs] Downloaded {downloaded_bytes} bytes from {url}")
             feeds.append(resp.content)
-        return feeds  # Return a list of bytes for all feeds
+        return feeds
 
-    # Otherwise, fetch the feed for the specific line
     for routes, url in FEED_URLS:
         if line in routes:
             resp = requests.get(url)
             resp.raise_for_status()
+            try:
+                downloaded_bytes = len(resp.content) if resp.content is not None else 0
+            except Exception:
+                downloaded_bytes = 0
+            print(f"[nyct_refs] Downloaded {downloaded_bytes} bytes from {url}")
             return resp.content
     return None
 

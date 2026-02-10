@@ -2,11 +2,89 @@ from flask import Flask, jsonify, render_template, request
 from nyct_refs import (NYCTFeed, NYCTStaticData)
 from lirr_refs import ( LIRRFeed, LIRRStaticData)
 from datetime import datetime
-from updater import run_updates
-
-run_updates()
+from cache_manager import start as start_cache, ensure_static_present, get_state as cache_get_state, wait_for_version as cache_wait_for_version
+from flask import Response, stream_with_context
+import gzip
+from io import BytesIO
+import json
+import logging
 
 app = Flask(__name__)
+
+# Ensure GTFS static files exist (runs updater once if missing)
+ensure_static_present()
+# Start background tasks: realtime cache (1 min) and static updater (24h)
+start_cache(realtime_interval=60, static_interval_hours=24)
+
+
+# Simple SSE endpoint that notifies clients when cache version updates
+@app.route('/events')
+def sse_events():
+    def gen():
+        last_version = -1
+        # send initial ping
+        initial = cache_get_state().get('version')
+        print(f"[app] SSE client connected, initial version={initial}")
+        yield f"data: {json.dumps({'version': initial})}\n\n"
+        last_version = initial
+        while True:
+            new_version = cache_wait_for_version(last_version, timeout=30)
+            if new_version > last_version:
+                # include timestamp so clients can show relative "updated X ago"
+                payload = {'version': new_version, 'timestamp': time.time()}
+                print(f"[app] SSE sending update version={new_version} ts={payload['timestamp']}")
+                yield f"data: {json.dumps(payload)}\n\n"
+                last_version = new_version
+            else:
+                # keep connection alive
+                yield ': heartbeat\n\n'
+    # Use stream_with_context so the generator has request context
+    rv = Response(stream_with_context(gen()), mimetype='text/event-stream')
+    # Recommended headers for SSE and to disable buffering in proxies (nginx, etc.)
+    rv.headers['Cache-Control'] = 'no-cache'
+    rv.headers['X-Accel-Buffering'] = 'no'
+    rv.headers['Connection'] = 'keep-alive'
+    rv.headers['Content-Type'] = 'text/event-stream; charset=utf-8'
+    return rv
+
+
+@app.route('/debug/cache')
+def debug_cache():
+    # return cache state for visualizer
+    state = cache_get_state()
+    return jsonify(state)
+
+
+@app.route('/debug')
+def debug_page():
+    return render_template('debug.html')
+
+
+@app.after_request
+def compress_response(response):
+    accept = request.headers.get('Accept-Encoding', '')
+    if 'gzip' not in accept.lower():
+        return response
+    # don't compress SSE or already encoded
+    if response.direct_passthrough:
+        return response
+    # explicitly skip SSE content type
+    if response.mimetype == 'text/event-stream':
+        return response
+    if response.headers.get('Content-Encoding'):
+        return response
+    content_type = response.mimetype or ''
+    if content_type.startswith('application/json') or content_type.startswith('text/'):
+        try:
+            data = response.get_data()
+            gz = gzip.compress(data)
+            response.set_data(gz)
+            response.headers['Content-Encoding'] = 'gzip'
+            response.headers['Content-Length'] = len(gz)
+        except Exception:
+            pass
+    return response
+
 LIRR_STATIC = LIRRStaticData()
 NYCT_STATIC = NYCTStaticData()
 
@@ -20,6 +98,7 @@ def fmt_time(ts):
     
 @app.route("/")
 def index():
+    logging.info("Serving index page")
     return render_template("index.html")
 
 # --- NYCT (Subway) Endpoints ---
@@ -27,9 +106,11 @@ def index():
 def api_nyct_trains():
     # Fetch the line from query parameters, default to "A"
     line = request.args.get("line", "A").upper()
+    logging.info(f"API: /api/nyct/trains line={line}")
     feed = NYCTFeed(line)
     if feed is None:
-        return
+        logging.warning("NYCT feed was None")
+        return jsonify([])
     
     train_list = []
     for trip in feed.trips:
@@ -73,15 +154,18 @@ def api_nyct_trains():
 
     # Sort by route_id alphabetically
     train_list.sort(key=lambda x: x.get("route_id", ""))
+    logging.info(f"API: returning {len(train_list)} NYCT trains")
     return jsonify(train_list)
 
 # --- LIRR Endpoints ---
 @app.route("/api/lirr/trains")
 def api_lirr_trains():
     line = request.args.get("line", "ALL").upper()
+    logging.info(f"API: /api/lirr/trains line={line}")
     feed = LIRRFeed(line)
     if feed is None:
-        return 
+        logging.warning("LIRR feed was None")
+        return jsonify([])
 
     train_list = []
     for trip in feed.trips:
@@ -105,6 +189,7 @@ def api_lirr_trains():
                 "route_text_color": color_info["text_color"],
                 "trip_id": trip.id,
             })
+    logging.info(f"API: returning {len(train_list)} LIRR trains")
     return jsonify(train_list)
 
 if __name__ == "__main__":

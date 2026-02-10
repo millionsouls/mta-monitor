@@ -6,46 +6,61 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-    <h1>MTA Train Monitor</h1>
-    <label for="mode">Select Mode:</label>
-    <select id="mode" onchange="toggleLineInput()">
-        <option value="subway">Subway</option>
-        <option value="lirr">LIRR</option>
-    </select>
-    <span id="subway-line-span">
-        <label for="line">Line:</label>
-        <select id="line">
-            <option value="ALL">All</option>
-            <option value="A">A</option>
-            <option value="B">B</option>
-            <option value="C">C</option>
-            <option value="D">D</option>
-            <option value="E">E</option>
-            <option value="F">F</option>
-            <option value="G">G</option>
-            <option value="J">J</option>
-            <option value="L">L</option>
-            <option value="M">M</option>
-            <option value="N">N</option>
-            <option value="Q">Q</option>
-            <option value="R">R</option>
-            <option value="S">S</option>
-            <option value="Z">Z</option>
-            <option value="1">1</option>
-            <option value="2">2</option>
-            <option value="3">3</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-            <option value="6">6</option>
-            <option value="7">7</option>
-        </select>
-    </span>
-    <button onclick="loadTrains()">Monitor</button>
-    <div id="alert"></div>
-    <table id="train-table">
-        <thead id="table-head"></thead>
-        <tbody id="table-body"></tbody>
-    </table>
+        <div class="app-container">
+            <div class="header">
+                <div>
+                    <div class="title">MTA Train Monitor</div>
+                    <div id="last-updated">Updated: N/A</div>
+                </div>
+                <div id="controls">
+                    <div class="controls">
+                    <select id="mode" onchange="toggleLineInput()">
+                                <option value="subway">Subway</option>
+                                <option value="lirr">LIRR</option>
+                        </select>
+                    <input id="search-input" type="search" placeholder="Search trips, stops or IDs" oninput="onSearchInput()" style="min-width:180px" />
+                    <button id="sort-arrival" title="Sort by arrival time" onclick="toggleSort()">Sort: Arrival ↓</button>
+                        <span id="subway-line-span">
+                                <select id="line">
+                                        <option value="ALL">All</option>
+                                        <option value="A">A</option>
+                                        <option value="B">B</option>
+                                        <option value="C">C</option>
+                                        <option value="D">D</option>
+                                        <option value="E">E</option>
+                                        <option value="F">F</option>
+                                        <option value="G">G</option>
+                                        <option value="J">J</option>
+                                        <option value="L">L</option>
+                                        <option value="M">M</option>
+                                        <option value="N">N</option>
+                                        <option value="Q">Q</option>
+                                        <option value="R">R</option>
+                                        <option value="S">S</option>
+                                        <option value="Z">Z</option>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                        <option value="6">6</option>
+                                        <option value="7">7</option>
+                                </select>
+                        </span>
+                        <button onclick="loadTrains()">Monitor</button>
+                        <button class="secondary" onclick="location.href='/debug'">Debug</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div id="alert"></div>
+                <table id="train-table">
+                        <thead id="table-head"></thead>
+                        <tbody id="table-body"></tbody>
+                </table>
+            </div>
+        </div>
 
     <!-- Schedule Modal -->
     <div id="schedule-modal" style="display:none;">
