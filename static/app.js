@@ -8,6 +8,7 @@ let sortAsc = true;
 // Cache all train data from SSE
 let allNyctTrains = [];
 let allLirrTrains = [];
+let sseConnected = false;  // Track if SSE has connected with data
 
 function showAlert(msg) {
     const alertDiv = document.getElementById('alert');
@@ -58,6 +59,13 @@ function renderTable(mode, trains) {
     const thead = document.getElementById('table-head');
     const tbody = document.getElementById('table-body');
     tbody.innerHTML = '';
+    
+    // Defensive: ensure trains is an array
+    if (!Array.isArray(trains)) {
+        console.error('[CLIENT] renderTable received non-array trains:', trains);
+        trains = [];
+    }
+    
     if (mode === 'subway') {
         thead.innerHTML = `<tr>
             <th>Route</th>
@@ -76,7 +84,10 @@ function renderTable(mode, trains) {
             <th>Trip ID</th>
             <th>Schedule</th>
         </tr>`;
-        trains.sort((a, b) => a.route_name.localeCompare(b.route_name));
+        // Only sort if trains is actually an array
+        if (Array.isArray(trains)) {
+            trains.sort((a, b) => a.route_name.localeCompare(b.route_name));
+        }
     }
     // apply fuzzy search filter
     let filtered = trains.filter(t => {
@@ -138,6 +149,15 @@ function renderTable(mode, trains) {
 function loadTrains() {
     const mode = document.getElementById('mode').value;
     let trains = [];
+    
+    // Wait for SSE to connect and provide initial data
+    if (!sseConnected) {
+        console.warn('[CLIENT] No data available yet - waiting for SSE connection');
+        // Show empty table with message
+        const tbody = document.getElementById('table-body');
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#999;">Waiting for real-time data...</td></tr>';
+        return;
+    }
     
     if (mode === 'subway') {
         const line = document.getElementById('line').value;
@@ -291,6 +311,7 @@ setInterval(updateLastUpdatedDisplay, 15000);
                 if (d.trains) {
                     allNyctTrains = d.trains.nyct || [];
                     allLirrTrains = d.trains.lirr || [];
+                    sseConnected = true;  // Mark that we've received data
                     console.log(`[SSE] DATA UPDATE v${d.version}: Cached ${allNyctTrains.length} NYCT + ${allLirrTrains.length} LIRR trains`);
                 }
                 
@@ -313,10 +334,12 @@ setInterval(updateLastUpdatedDisplay, 15000);
             setTimeout(()=> statusEl.textContent = 'SSE: connected', 1000);
         };
         es.onerror = (err) => {
-            console.warn('SSE error', err);
+            console.warn('[SSE] Error - attempting reconnection', err);
             statusEl.textContent = 'SSE: reconnecting...';
             es.close();
-            setTimeout(connect, 3000);
+            // exponential backoff with 3-10 second delay
+            const delay = Math.min(10000, 3000 + Math.random() * 7000);
+            setTimeout(connect, delay);
         };
     }
 
