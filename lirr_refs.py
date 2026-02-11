@@ -1,6 +1,6 @@
 import os
 import csv
-import requests
+from google.protobuf.json_format import MessageToDict
 import proto.gtfs_realtime_pb2 as gtfs_realtime_pb2
 import proto.gtfs_realtime_lirr_pb2 as gtfs_realtime_lirr_pb2
 from cache_manager import get_lirr_feed
@@ -39,7 +39,6 @@ ROUTES = {}
 SCHEDULE = {}
 STOP_NAMES = {}
 ROUTE_COLORS = {}
-FEED_URL = "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/lirr%2Fgtfs-lirr"
 
 def get_station_name(stop_id):
     stop_id = stop_id.strip()
@@ -51,22 +50,13 @@ def get_station_name(stop_id):
 
 def fetch_lirr_feed():
     cached = get_lirr_feed()
-    if cached:
-        logging.info("LIRR: returning cached bytes")
-        print("[lirr_refs] using cached bytes for LIRR")
-        return cached
-    response = requests.get(FEED_URL)
-    response.raise_for_status()
-    try:
-        downloaded_bytes = len(response.content) if response.content is not None else 0
-    except Exception:
-        downloaded_bytes = 0
-    print(f"[lirr_refs] Downloaded {downloaded_bytes} bytes from {FEED_URL}")
-    return response.content
+    if not cached:
+        logging.warning("LIRR feed not available in cache")
+    return cached
 
 class LIRRFeed:
     def __init__(self, line):
-        print(f"Fetching LIRR feed for line: {line}")
+        logging.info(f"Fetching LIRR feed for line: {line}")
         feed_bytes = fetch_lirr_feed()
         self.feed = gtfs_realtime_pb2.FeedMessage()
 
@@ -74,7 +64,7 @@ class LIRRFeed:
             try:
                 self.feed.ParseFromString(feed_bytes)
             except Exception as e:
-                print("Failed to parse LIRR feed. Error:", e)
+                logging.info("Failed to parse LIRR feed. Error:", e)
                 self.feed = None
         else:
             self.feed = None
@@ -163,29 +153,28 @@ class LIRRStaticData:
 
     def _load_routes(self, filepath="data/lirr/routes.txt"):
         if not os.path.exists(filepath):
-            print("Failed to find trips.txt for LIRR")
+            logging.info("Failed to find trips.txt for LIRR")
             return
         with open(filepath, newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 ROUTES[row['route_id'].strip()] = row['route_long_name'].strip()
-        print("Trips loaded for LIRR:", len(ROUTES))
+        logging.info("Trips loaded for LIRR: %d", len(ROUTES))
 
     def _load_stop_names(self, filepath="data/lirr/stops.txt"):
         if not os.path.exists(filepath):
-            print("Failed to find stops.txt for LIRR")
+            logging.info("Failed to find stops.txt for LIRR")
             return
         with open(filepath, newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 STOP_NAMES[row["stop_id"].strip()] = row["stop_name"].strip()
 
-            print("Station names loaded for LIRR:", len(STOP_NAMES))
-
+            logging.info("Station names loaded for LIRR: %d", len(STOP_NAMES))
     
     def _load_route_colors(self, filepath="data/lirr/routes.txt"):
         if not os.path.exists(filepath):
-            print("Failed to find routes.txt for LIRR")
+            logging.info("Failed to find routes.txt for LIRR")
             return
         with open(filepath, newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
@@ -200,7 +189,7 @@ class LIRRStaticData:
 
     def _load_schedule(self, filepath="data/lirr/stop_times.txt"):
         if not os.path.exists(filepath):
-            print("Failed to find schedule.txt for LIRR")
+            logging.info("Failed to find schedule.txt for LIRR")
             return
         with open(filepath, newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
@@ -211,11 +200,9 @@ class LIRRStaticData:
 
                 SCHEDULE[(trip_id, stop_sequence)] = arrival_time
 
-    def get_headsign(self, route_id):
-        for id, head in ROUTES.items():
-            if route_id in id:
-                return head
-        return route_id
+    def get_headsign(self, trip_id):
+        return ROUTES.get(trip_id, trip_id)
+
     
     def get_schedule(self, trip_id, stop_sequence):
         # stop_sequence may be string or int, so ensure int for lookup

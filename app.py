@@ -9,14 +9,19 @@ import gzip
 from io import BytesIO
 import json
 import logging
+import threading
 
 app = Flask(__name__)
+
+_LAST_BUILT_VERSION = None
+_LAST_BUILT_TRAINS = None
+_BUILD_LOCK = threading.Lock()
+
 
 # Ensure GTFS static files exist (runs updater once if missing)
 ensure_static_present()
 # Start background tasks: realtime cache (1 min) and static updater (24h)
 start_cache(realtime_interval=60, static_interval_hours=24)
-
 
 # SSE endpoint that pushes complete train data when updates arrive
 # This is the ONLY data channel — all train data flows through here
@@ -31,7 +36,7 @@ def sse_events():
             # send initial data
             initial = cache_get_state().get('version')
             logging.info(f"[SSE] CLIENT {client_addr} connected (version={initial})")
-            trains = build_all_trains()
+            trains, version = get_cached_trains()
             payload = {'version': initial, 'timestamp': time.time(), 'trains': trains}
             logging.debug(f"[SSE] CLIENT {client_addr} initial: {len(trains['nyct'])} NYCT, {len(trains['lirr'])} LIRR trains")
             yield f"data: {json.dumps(payload)}\n\n"
@@ -40,7 +45,7 @@ def sse_events():
                 new_version = cache_wait_for_version(last_version, timeout=30)
                 if new_version > last_version:
                     # New data available — build and push all trains at once
-                    trains = build_all_trains()
+                    trains, version = get_cached_trains()
                     payload = {'version': new_version, 'timestamp': time.time(), 'trains': trains}
                     logging.info(f"[SSE] CLIENT {client_addr} UPDATE v{new_version}: {len(trains['nyct'])} NYCT, {len(trains['lirr'])} LIRR")
                     yield f"data: {json.dumps(payload)}\n\n"
@@ -56,12 +61,10 @@ def sse_events():
             except Exception:
                 pass
     # Use stream_with_context so the generator has request context
-    rv = Response(stream_with_context(gen()), mimetype='text/event-stream')
-    # Recommended headers for SSE and to disable buffering in proxies (nginx, etc.)
+    rv = Response(stream_with_context(gen()), content_type='text/event-stream')
     rv.headers['Cache-Control'] = 'no-cache'
     rv.headers['X-Accel-Buffering'] = 'no'
-    rv.headers['Connection'] = 'keep-alive'
-    rv.headers['Content-Type'] = 'text/event-stream; charset=utf-8'
+
     return rv
 
 
@@ -79,13 +82,13 @@ def compress_response(response):
     if response.headers.get('Content-Encoding'):
         return response
     content_type = response.mimetype or ''
-    if content_type.startswith('application/json') or content_type.startswith('text/'):
+    if content_type.startswith(('application/json', 'text/')):
         try:
             data = response.get_data()
             gz = gzip.compress(data)
             response.set_data(gz)
             response.headers['Content-Encoding'] = 'gzip'
-            response.headers['Content-Length'] = len(gz)
+            response.headers['Content-Length'] = str(len(gz))
         except Exception:
             pass
     return response
@@ -101,6 +104,24 @@ def fmt_time(ts):
     except Exception:
         return str(ts)
 
+def get_cached_trains():
+    global _LAST_BUILT_VERSION, _LAST_BUILT_TRAINS
+
+    state = cache_get_state()
+    version = state['version']
+
+    if _LAST_BUILT_VERSION == version:
+        return _LAST_BUILT_TRAINS, version
+
+    with _BUILD_LOCK:
+        if _LAST_BUILT_VERSION != version:
+            trains = build_all_trains()
+            _LAST_BUILT_TRAINS = trains
+            _LAST_BUILT_VERSION = version
+
+    return _LAST_BUILT_TRAINS, version
+
+
 def build_all_trains():
     """Build complete train data for all lines (called when update arrives)."""
     try:
@@ -109,11 +130,15 @@ def build_all_trains():
         if nyct_feed and nyct_feed.feed:
             for trip in nyct_feed.trips:
                 color_info = NYCT_STATIC.get_colors(trip.trip.route_id)
+                route_details = NYCT_STATIC.get_route_details(trip.trip.route_id)
                 if trip.stop_time_updates:
                     stu = trip.stop_time_updates[0]
                     nyct_trains.append({
                         "system": "nyct",
                         "route_id": trip.trip.route_id,
+                        "route_short_name": route_details["short_name"],
+                        "route_long_name": route_details["long_name"],
+                        "route_desc": route_details["desc"],
                         "route_color": color_info["color"],
                         "route_text_color": color_info["text_color"],
                         "trip_name": NYCT_STATIC.get_headsign(trip.id),
@@ -153,10 +178,6 @@ def build_all_trains():
 def index():
     logging.info("[HTTP] Serving index page")
     return render_template("index.html")
-
-# NOTE: /api/nyct/trains and /api/lirr/trains endpoints have been REMOVED.
-# All train data flows via SSE (/events) only. Clients should use cached SSE data.
-# Legacy endpoints return 410 Gone to discourage polling.
 
 @app.route("/api/nyct/trains")
 def api_nyct_trains():

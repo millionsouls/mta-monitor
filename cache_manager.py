@@ -26,6 +26,12 @@ _lirr_feed_url = 'https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/lirr%2F
 _nyct_bytes = [None] * len(_nyct_feed_urls)
 _lirr_bytes = None
 
+# Build route -> index lookup once
+_ROUTE_TO_INDEX = {}
+for idx, (routes, _) in enumerate(_nyct_feed_urls):
+    for r in routes:
+        _ROUTE_TO_INDEX[r] = idx
+
 # state for debugging/visualizer
 _state = {
     'nyct': [{'last_fetch': None, 'size': 0, 'url': url} for (_, url) in _nyct_feed_urls],
@@ -82,15 +88,14 @@ def _fetch_lirr_once():
         logging.warning(f"[BACKEND] Failed to fetch LIRR feed: {e}")
 
 def get_nyct_feed(line):
-    # Return feed bytes for line or list of bytes for 'ALL'
     line = (line or '').upper()
     with _lock:
         if line == 'ALL':
             return [b for b in _nyct_bytes if b is not None]
-        for routes, url in _nyct_feed_urls:
-            if line in routes:
-                idx = _nyct_feed_urls.index((routes, url))
-                return _nyct_bytes[idx]
+
+        idx = _ROUTE_TO_INDEX.get(line)
+        if idx is not None:
+            return _nyct_bytes[idx]
     return None
 
 def get_lirr_feed():
@@ -220,7 +225,7 @@ def client_disconnected():
         _cond.notify_all()
 
 def get_client_count():
-    with _lock:
+    with _cond:
         return _client_count
 
 def set_notify_callback(callback):
