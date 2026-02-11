@@ -1,3 +1,7 @@
+// MTA Monitor Client - v2.0 (2026-02-11)
+// All train data flows via SSE only. Client-side filtering from cache.
+// Defensive array checks on all data processing to prevent crashes.
+
 let lastData = [];
 let lastLirrData = [];
 let lastUpdateTs = null; // unix seconds
@@ -89,7 +93,10 @@ function renderTable(mode, trains) {
             trains.sort((a, b) => a.route_name.localeCompare(b.route_name));
         }
     }
-    // apply fuzzy search filter
+    // apply fuzzy search filter (ensure trains is an array)
+    if (!Array.isArray(trains)) {
+        trains = [];
+    }
     let filtered = trains.filter(t => {
         if (!searchQuery) return true;
         const hay = [t.trip_name, t.trip_id, t.next_stop_name, t.route_name, t.route_id].join(' ');
@@ -307,10 +314,10 @@ setInterval(updateLastUpdatedDisplay, 15000);
             try {
                 const d = JSON.parse(e.data);
                 
-                // Cache train data from server
+                // Cache train data from server — ALWAYS ensure they're arrays
                 if (d.trains) {
-                    allNyctTrains = d.trains.nyct || [];
-                    allLirrTrains = d.trains.lirr || [];
+                    allNyctTrains = Array.isArray(d.trains.nyct) ? d.trains.nyct : [];
+                    allLirrTrains = Array.isArray(d.trains.lirr) ? d.trains.lirr : [];
                     sseConnected = true;  // Mark that we've received data
                     console.log(`[SSE] DATA UPDATE v${d.version}: Cached ${allNyctTrains.length} NYCT + ${allLirrTrains.length} LIRR trains`);
                 }
