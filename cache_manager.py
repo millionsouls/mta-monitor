@@ -39,64 +39,47 @@ _log = deque(maxlen=200)
 _lock = threading.RLock()
 _cond = threading.Condition(_lock)
 _running = False
+_client_count = 0
+_notify_callback = None  # callback(payload) called when data updated
 
 def _push_log(msg):
     ts = time.time()
     entry = {'ts': ts, 'msg': msg}
     with _lock:
         _log.appendleft(entry)
-    logging.info(msg)
+    logging.debug(msg)  # use debug to avoid log spam
 
 def _fetch_nyct_once():
+    # Fetch all NYCT sub-feeds; do NOT notify here
     for i, (_, url) in enumerate(_nyct_feed_urls):
         try:
             resp = requests.get(url, timeout=20)
             resp.raise_for_status()
             content = resp.content
-            # Acquire the Condition before notifying to ensure waiters are awakened
-            with _cond:
+            with _lock:
                 _nyct_bytes[i] = content
                 _state['nyct'][i]['last_fetch'] = time.time()
                 _state['nyct'][i]['size'] = len(content) if content is not None else 0
-                _state['version'] += 1
-                _push_log(f"NYCT fetched {url} ({_state['nyct'][i]['size']} bytes)")
-                _cond.notify_all()
-            # Also print concise console debug
-            print(f"[cache_manager] NYCT fetched {url} size={_state['nyct'][i]['size']}")
-            try:
-                downloaded = len(content) if content is not None else 0
-            except Exception:
-                downloaded = 0
-            logging.debug(f"NYCT feed fetched from {url}: {downloaded} bytes")
+            size = _state['nyct'][i]['size']
+            logging.debug(f"[BACKEND] NYCT feed fetched: {size} bytes")
         except Exception as e:
-            _push_log(f"Failed to fetch NYCT feed {url}: {e}")
-            logging.warning(f"Failed to fetch NYCT feed {url}: {e}")
-            print(f"[cache_manager] Failed to fetch NYCT {url}: {e}")
+            logging.warning(f"[BACKEND] Failed to fetch NYCT feed {url}: {e}")
 
 def _fetch_lirr_once():
+    # Fetch LIRR; do NOT notify here
     global _lirr_bytes
     try:
         resp = requests.get(_lirr_feed_url, timeout=20)
         resp.raise_for_status()
         content = resp.content
-        # Acquire the Condition before notifying to ensure waiters are awakened
-        with _cond:
+        with _lock:
             _lirr_bytes = content
             _state['lirr']['last_fetch'] = time.time()
             _state['lirr']['size'] = len(content) if content is not None else 0
-            _state['version'] += 1
-            _push_log(f"LIRR fetched ({_state['lirr']['size']} bytes)")
-            _cond.notify_all()
-        try:
-            downloaded = len(content) if content is not None else 0
-        except Exception:
-            downloaded = 0
-        logging.debug(f"LIRR feed fetched: {downloaded} bytes")
-        print(f"[cache_manager] LIRR fetched size={_state['lirr']['size']}")
+        size = _state['lirr']['size']
+        logging.debug(f"[BACKEND] LIRR feed fetched: {size} bytes")
     except Exception as e:
-        _push_log(f"Failed to fetch LIRR feed: {e}")
-        logging.warning(f"Failed to fetch LIRR feed: {e}")
-        print(f"[cache_manager] Failed to fetch LIRR: {e}")
+        logging.warning(f"[BACKEND] Failed to fetch LIRR feed: {e}")
 
 def get_nyct_feed(line):
     # Return feed bytes for line or list of bytes for 'ALL'
@@ -132,13 +115,56 @@ def wait_for_version(last_version, timeout=None):
         return _state['version']
 
 def _realtime_loop(interval=60):
-    # initial fetch
-    _fetch_nyct_once()
-    _fetch_lirr_once()
+    # Run only when there are active clients. When no clients are connected,
+    # wait on the condition to be notified by client_connected().
     while _running:
-        time.sleep(interval)
+        # wait until a client connects or _running changes
+        with _cond:
+            while _client_count == 0 and _running:
+                _cond.wait()
+            if not _running:
+                break
+        # At least one client is present — perform fetch and notify once
         _fetch_nyct_once()
         _fetch_lirr_once()
+        # After fetch, increment version once and notify SSE clients
+        with _cond:
+            _state['version'] += 1
+            _cond.notify_all()
+            if _notify_callback:
+                try:
+                    _notify_callback({'type': 'update', 'timestamp': time.time()})
+                except Exception as e:
+                    logging.debug(f"[BACKEND] Notify callback error: {e}")
+        logging.info(f"[BACKEND] Fetch cycle complete (v{_state['version']}, {_client_count} clients)")
+        next_time = time.time() + interval
+        # Continue fetching at `interval` while there are clients connected
+        while _running:
+            with _cond:
+                if _client_count == 0:
+                    # stop periodic fetches and go back to waiting for clients
+                    break
+                remaining = next_time - time.time()
+                if remaining > 0:
+                    _cond.wait(timeout=remaining)
+                    # re-evaluate loop conditions
+                    continue
+            # time elapsed, do next fetch
+            if not _running:
+                break
+            _fetch_nyct_once()
+            _fetch_lirr_once()
+            # After fetch, increment version once and notify
+            with _cond:
+                _state['version'] += 1
+                _cond.notify_all()
+                if _notify_callback:
+                    try:
+                        _notify_callback({'type': 'update', 'timestamp': time.time()})
+                    except Exception as e:
+                        logging.debug(f"[BACKEND] Notify callback error: {e}")
+                logging.info(f"[BACKEND] Fetch cycle complete (v{_state['version']}, {_client_count} clients)")
+            next_time = time.time() + interval
 
 def _static_loop(interval_hours=24):
     # Run once immediately to ensure data present
@@ -175,6 +201,32 @@ def start(realtime_interval=60, static_interval_hours=24):
     t2 = threading.Thread(target=_static_loop, args=(static_interval_hours,), daemon=True)
     t1.start()
     t2.start()
+
+def client_connected():
+    global _client_count
+    with _cond:
+        _client_count += 1
+        _push_log(f"Client connected (count={_client_count})")
+        _cond.notify_all()
+
+def client_disconnected():
+    global _client_count
+    with _cond:
+        try:
+            _client_count = max(0, _client_count - 1)
+        except Exception:
+            _client_count = 0
+        _push_log(f"Client disconnected (count={_client_count})")
+        _cond.notify_all()
+
+def get_client_count():
+    with _lock:
+        return _client_count
+
+def set_notify_callback(callback):
+    global _notify_callback
+    with _lock:
+        _notify_callback = callback
 
 def ensure_static_present():
     # Ensure `data` directory contains expected feeds; run updater if missing.

@@ -5,6 +5,10 @@ let searchQuery = '';
 let sortByArrival = true; // default on
 let sortAsc = true;
 
+// Cache all train data from SSE
+let allNyctTrains = [];
+let allLirrTrains = [];
+
 function showAlert(msg) {
     const alertDiv = document.getElementById('alert');
     alertDiv.textContent = msg;
@@ -133,21 +137,31 @@ function renderTable(mode, trains) {
 
 function loadTrains() {
     const mode = document.getElementById('mode').value;
-    let url = '';
+    let trains = [];
+    
     if (mode === 'subway') {
         const line = document.getElementById('line').value;
-        url = `/api/nyct/trains?line=${encodeURIComponent(line)}`;
-    } else {
-        url = `/api/lirr/trains`;
-    }
-    fetch(url)
-        .then(r => r.json())
-        .then(data => {
-            renderTable(mode, data);
-            // mark last update time as now (client-side) if server SSE didn't provide one
-            lastUpdateTs = Math.floor(Date.now() / 1000);
-            updateLastUpdatedDisplay();
+        // Filter NYCT trains from cached data by line
+        trains = allNyctTrains.filter(t => {
+            if (line === 'ALL') return true;
+            return t.route_id === line;
         });
+        console.log(`[CLIENT] Subway line="${line}" -> ${trains.length}/${allNyctTrains.length} trains (from cache only)`);
+    } else {
+        // Use all cached LIRR trains
+        trains = allLirrTrains;
+        console.log(`[CLIENT] LIRR mode -> ${trains.length}/${allLirrTrains.length} trains (from cache only)`);
+    }
+    
+    if (trains.length === 0 && (allNyctTrains.length > 0 || allLirrTrains.length > 0)) {
+        console.warn('[CLIENT] Filter returned 0 results but data is cached');
+    }
+    
+    renderTable(mode, trains);
+    // mark last update time as now (client-side)
+    if (lastUpdateTs) {
+        updateLastUpdatedDisplay();
+    }
 }
 
 function onSearchInput(){
@@ -266,23 +280,34 @@ setInterval(updateLastUpdatedDisplay, 15000);
         }
 
         es.onopen = () => {
-            console.debug('SSE opened');
+            console.log('[SSE] Connection established - waiting for data');
             statusEl.textContent = 'SSE: connected';
         };
         es.onmessage = (e) => {
             try {
-                    const d = JSON.parse(e.data);
-                    console.debug('SSE message', d);
-                    // if server provided a timestamp, use it for the "last updated" display
-                    if (d.timestamp) {
-                        lastUpdateTs = Math.floor(d.timestamp);
-                        updateLastUpdatedDisplay();
-                    }
-                } catch (err) {
-                    // heartbeat or non-json
+                const d = JSON.parse(e.data);
+                
+                // Cache train data from server
+                if (d.trains) {
+                    allNyctTrains = d.trains.nyct || [];
+                    allLirrTrains = d.trains.lirr || [];
+                    console.log(`[SSE] DATA UPDATE v${d.version}: Cached ${allNyctTrains.length} NYCT + ${allLirrTrains.length} LIRR trains`);
                 }
-                // When server notifies, refresh visible data
-                loadTrains();
+                
+                // Update timestamp if provided
+                if (d.timestamp) {
+                    lastUpdateTs = Math.floor(d.timestamp);
+                    updateLastUpdatedDisplay();
+                }
+            } catch (err) {
+                // heartbeat or non-json
+                console.debug('[SSE] Heartbeat');
+            }
+            
+            // When server notifies, refresh visible data from cache (NO HTTP CALLS)
+            console.log('[CLIENT] Re-rendering from cache (NO server fetch)');
+            loadTrains();
+            
             // briefly flash status
             statusEl.textContent = 'SSE: updated';
             setTimeout(()=> statusEl.textContent = 'SSE: connected', 1000);

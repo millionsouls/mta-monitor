@@ -48,6 +48,8 @@ FeedMessage
 TRIPS = {}
 STOP_NAMES = {}
 ROUTE_COLORS = {}
+_CACHED_ALL_VERSION = None
+_CACHED_ALL_FEED = None
 FEED_URLS = [
     (["1", "2", "3", "4", "5", "6", "7", "S"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"),
     (["A", "C", "E", "SR"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"),
@@ -105,25 +107,42 @@ def fetch_feed(line):
 class NYCTFeed:
     def __init__(self, line):
         if line.upper() == "ALL":
+            # Use cached parsed FeedMessage tied to the cache manager's version
+            state = cache_get_state()
+            version = state.get('version')
+            global _CACHED_ALL_VERSION, _CACHED_ALL_FEED
+            if _CACHED_ALL_FEED is not None and _CACHED_ALL_VERSION == version:
+                # reuse previously parsed FeedMessage
+                self.feed = _CACHED_ALL_FEED
+                return
+
             print("Fetching all NYCT feeds...")
             feeds_bytes = fetch_feed(line)
-            self.feed = gtfs_realtime_pb2.FeedMessage()
-            self.feed.entity.extend([])
-            
+            combined = gtfs_realtime_pb2.FeedMessage()
+            combined.entity.extend([])
+
             for feed_bytes in feeds_bytes:
-                # Debug: print first 100 bytes and try to detect HTML or JSON
+                # Debug: detect likely HTML/JSON error responses
+                if not feed_bytes:
+                    continue
                 if feed_bytes[:1] == b'{' or feed_bytes[:1] == b'<':
-                    print("Warning: Feed does not look like protobuf. First 100 bytes:", feed_bytes[:100])
+                    # skip non-protobuf responses
+                    logging.debug("NYCT: skipping non-protobuf feed chunk")
                     continue
 
                 try:
                     temp_feed = gtfs_realtime_pb2.FeedMessage()
                     temp_feed.ParseFromString(feed_bytes)
-                    self.feed.entity.extend(temp_feed.entity)
+                    combined.entity.extend(temp_feed.entity)
                 except Exception as e:
-                    print("Failed to parse feed, skipping. Error:", e)
+                    logging.debug(f"NYCT: Failed to parse feed chunk, skipping: {e}")
                     continue
-            print(f"Fetched {len(self.feed.entity)} entities from all feeds.")
+
+            print(f"Fetched {len(combined.entity)} entities from all feeds.")
+            # cache parsed combined feed
+            _CACHED_ALL_FEED = combined
+            _CACHED_ALL_VERSION = version
+            self.feed = combined
         else:
             bytes = fetch_feed(line)
             self.feed = gtfs_realtime_pb2.FeedMessage()
