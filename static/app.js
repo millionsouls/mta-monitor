@@ -59,6 +59,33 @@ function getContrastColor(hex) {
     return yiq >= 128 ? '#000' : '#fff';
 }
 
+// Decode NYCT train ID format
+// Format: XY ZZZZ+/- ORIGIN|DESTINATION
+// X = trip type (0=scheduled, =,/,$ = variations)
+// Y = route line number
+// ZZZZ+ = origin time (last char can be blank or +)
+// ORIGIN|DESTINATION = 3 char codes
+function decodeNYCTTrainId(trainId) {
+    if (!trainId || trainId.length < 6) return trainId;
+    const parts = trainId.split(' ');
+    if (parts.length < 2) return trainId;
+    
+    const typeId = parts[0];
+    const timeOriginDest = parts.slice(1).join(' ');
+    
+    const tripTypeMap = {
+        '0': 'Scheduled Trip',
+        '=': 'Reroute',
+        '/': 'Skip Stop',
+        '$': 'Turn Train'
+    };
+    
+    const tripType = tripTypeMap[typeId[0]] || 'Unknown';
+    const routeLine = typeId[1] || '?';
+    
+    return `Route ${routeLine} - ${tripType}`;
+}
+
 function renderTable(mode, trains) {
     const thead = document.getElementById('table-head');
     const tbody = document.getElementById('table-body');
@@ -73,8 +100,7 @@ function renderTable(mode, trains) {
     if (mode === 'subway') {
         thead.innerHTML = `<tr>
             <th>Route</th>
-            <th>Trip ID</th>
-            <th>Train ID</th>
+            <th>Route Long Name</th>
             <th>Direction</th>
             <th>Next Stop</th>
             <th>Departure</th>
@@ -86,6 +112,7 @@ function renderTable(mode, trains) {
         thead.innerHTML = `<tr>
             <th>Route</th>
             <th>Trip ID</th>
+            <th>Delay</th>
             <th>Schedule</th>
         </tr>`;
         // Only sort if trains is actually an array
@@ -119,14 +146,25 @@ function renderTable(mode, trains) {
         const row = document.createElement('tr');
         if (changedRows.includes(i)) row.classList.add('updated');
         if (mode === 'subway') {
-            // route pill + trip name
-            const routeId = train.route_id || '';
+            // route pill with short name and description
+            const routeShortName = train.route_short_name || train.route_id || '';
+            const routeDesc = train.route_desc || '';
             const pillColor = (train.route_color || '#888').replace(/^[^#]/, '#');
-            const pillText = routeId || (train.trip_name||'');
             const pillTextColor = getContrastColor(pillColor.replace('#',''));
-            row.innerHTML = `<td><span class="route-pill" style="background:${pillColor};color:${pillTextColor}">${pillText}</span> <span style="margin-left:8px">${train.trip_name||''}</span></td>
-                <td class="col-trainid">${train.trip_id||''}</td>
-                <td class="col-trainid">${train.train_id||''}</td>
+            
+            // Train ID with hover tooltip (if available)
+            let trainIdCell = '';
+            if (train.train_id) {
+                const decodedTrainId = decodeNYCTTrainId(train.train_id);
+                trainIdCell = `<span class="train-id-tooltip" title="${train.train_id}\n${decodedTrainId}">${train.train_id}</span>`;
+            }
+            
+            // Route pill with description as title/hover
+            const routeCell = `<span class="route-pill" style="background:${pillColor};color:${pillTextColor}" title="${routeDesc}">${routeShortName}</span>`;
+            const routeLongName = train.route_long_name || '';
+            
+            row.innerHTML = `<td>${routeCell}${trainIdCell ? ` <span style="margin-left:8px">${trainIdCell}</span>` : ''}</td>
+                <td class="col-long-name">${routeLongName}</td>
                 <td class="col-direction">${train.direction||''}</td>
                 <td>${train.next_stop_name||''}</td>
                 <td class="col-departure">${train.departure||''}</td>
@@ -136,8 +174,16 @@ function renderTable(mode, trains) {
         } else {
             const pillColor = (train.route_color || '#888').replace(/^[^#]/, '#');
             const pillTextColor = getContrastColor(pillColor.replace('#',''));
+            // Calculate delay from first stop
+            let delayStr = '--';
+            if (train.stu && Array.isArray(train.stu) && train.stu.length > 0) {
+                const firstStop = train.stu[0];
+                const delay = firstStop.ddelay || 0;
+                delayStr = delay > 0 ? `+${delay}s` : (delay === 0 ? 'On time' : `${delay}s`);
+            }
             row.innerHTML = `<td><span class="route-pill" style="background:${pillColor};color:${pillTextColor}">${train.route_name||''}</span></td>
                 <td class="col-trainid">${train.trip_id||''}</td>
+                <td class="col-delay">${delayStr}</td>
                 <td>
                     <button onclick="showSchedule(${i})">View Schedule</button>
                 </td>`;
@@ -224,12 +270,17 @@ function showSchedule(index) {
     if (train && train.stu && Array.isArray(train.stu)) {
         train.stu.forEach(stop => {
             const row = document.createElement('tr');
+            const arrDelay = stop.adelay !== undefined && stop.adelay !== null ? stop.adelay : '--';
+            const depDelay = stop.ddelay !== undefined && stop.ddelay !== null ? stop.ddelay : '--';
             row.innerHTML = `
                 <td>${stop.stop_sequence}</td>
                 <td>${stop.stop_id}</td>
                 <td>${stop.stop_name}</td>
                 <td>${stop.scheduled}</td>
                 <td>${formatTime(stop.arrival)}</td>
+                <td>${arrDelay}</td>
+                <td>${formatTime(stop.departure)}</td>
+                <td>${depDelay}</td>
                 <td>${stop.track || ''}</td>
                 <td>${stop.train_status || ''}</td>
             `;

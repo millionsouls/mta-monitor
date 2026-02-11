@@ -55,14 +55,29 @@ tbody tr:hover{background:rgba(255,255,255,0.02)}
 #search-input{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
 #sort-arrival{padding:8px 10px;border-radius:8px;border:none;background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.04);cursor:pointer}
 
+/* Column styling */
+.col-delay { font-weight: 600; color: var(--accent) }
+.col-long-name { font-size: 12px; color: var(--muted) }
+
 /* Responsive column hiding: on small screens collapse less important columns */
 @media(max-width:720px){
-    .col-trainid, .col-direction, .col-actual-track, .col-assigned, .col-departure { display:none }
+    .col-long-name, .col-direction, .col-actual-track, .col-assigned, .col-departure { display:none }
     thead th:nth-child(2), tbody td:nth-child(2) { min-width: 70px }
 }
 
 /* pill contrast helper fallbacks */
 .route-pill{display:inline-block}
+
+/* Train ID tooltip with hover styling */
+.train-id-tooltip {
+    cursor: help;
+    border-bottom: 1px dotted rgba(255,255,255,0.3);
+    padding: 0 2px;
+}
+
+.train-id-tooltip:hover {
+    border-bottom-color: var(--accent);
+}
 
 /* modal */
 #schedule-modal,#modal-backdrop{display:none}
