@@ -4,7 +4,6 @@ import logging
 from cache_manager import get_state as cache_get_state
 import csv
 import os
-import requests
 from cache_manager import get_nyct_feed
 
 '''
@@ -48,18 +47,9 @@ FeedMessage
 TRIPS = {}
 STOP_NAMES = {}
 ROUTE_COLORS = {}
+ROUTE_DETAILS = {}  # Store route_short_name and route_desc
 _CACHED_ALL_VERSION = None
 _CACHED_ALL_FEED = None
-FEED_URLS = [
-    (["1", "2", "3", "4", "5", "6", "7", "S"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"),
-    (["A", "C", "E", "SR"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"),
-    (["B", "D", "F", "M", "SF"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm"),
-    (["G"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-g"),
-    (["J", "Z"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-jz"),
-    (["L"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-l"),
-    (["N", "Q", "R", "W"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-nqrw"),
-    (["SIR"], "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-sir"),
-]
 
 def get_station_name(stop_id):
     stop_id = stop_id.strip()
@@ -69,40 +59,12 @@ def get_station_name(stop_id):
         return STOP_NAMES[stop_id[:-1]]
     return stop_id
 
-def fetch_feed(line):
-    # Prefer cache-managed bytes; fall back to direct fetch
+def fetch_nyct_feed(line):
     cached = get_nyct_feed(line)
-    if cached:
-        logging.info(f"NYCT: returning cached bytes for line {line}")
-        print(f"[nyct_refs] using cached bytes for line={line}")
-        return cached
+    if not cached:
+        logging.warning("NYCT feed not available in cache")
+    return cached
 
-    line = line.upper()
-    # Fallback to direct requests if cache missing
-    feeds = []
-    if line == "ALL":
-        for routes, url in FEED_URLS:
-            resp = requests.get(url)
-            resp.raise_for_status()
-            try:
-                downloaded_bytes = len(resp.content) if resp.content is not None else 0
-            except Exception:
-                downloaded_bytes = 0
-            print(f"[nyct_refs] Downloaded {downloaded_bytes} bytes from {url}")
-            feeds.append(resp.content)
-        return feeds
-
-    for routes, url in FEED_URLS:
-        if line in routes:
-            resp = requests.get(url)
-            resp.raise_for_status()
-            try:
-                downloaded_bytes = len(resp.content) if resp.content is not None else 0
-            except Exception:
-                downloaded_bytes = 0
-            print(f"[nyct_refs] Downloaded {downloaded_bytes} bytes from {url}")
-            return resp.content
-    return None
 
 class NYCTFeed:
     def __init__(self, line):
@@ -116,8 +78,8 @@ class NYCTFeed:
                 self.feed = _CACHED_ALL_FEED
                 return
 
-            print("Fetching all NYCT feeds...")
-            feeds_bytes = fetch_feed(line)
+            logging.info("Fetching all NYCT feeds...")
+            feeds_bytes = fetch_nyct_feed(line)
             combined = gtfs_realtime_pb2.FeedMessage()
             combined.entity.extend([])
 
@@ -138,13 +100,13 @@ class NYCTFeed:
                     logging.debug(f"NYCT: Failed to parse feed chunk, skipping: {e}")
                     continue
 
-            print(f"Fetched {len(combined.entity)} entities from all feeds.")
+            logging.info(f"Fetched {len(combined.entity)} entities from all feeds.")
             # cache parsed combined feed
             _CACHED_ALL_FEED = combined
             _CACHED_ALL_VERSION = version
             self.feed = combined
         else:
-            bytes = fetch_feed(line)
+            bytes = fetch_nyct_feed(line)
             self.feed = gtfs_realtime_pb2.FeedMessage()
             if bytes:
                 self.feed.ParseFromString(bytes)
@@ -223,31 +185,32 @@ class NYCTStaticData:
         self._load_trips()
         self._load_stop_names()
         self._load_route_colors()
+        self._load_route_details()
 
     def _load_trips(self, filepath="data/nyct/trips.txt"):
         if not os.path.exists(filepath):
-            print("Failed to find trips.txt for NYCT")
+            logging.info("Failed to find trips.txt for NYCT")
             return
         with open(filepath, newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 TRIPS[row['trip_id'].strip()] = row['trip_headsign'].strip()
-        print("Trips loaded for NYCT:", len(TRIPS))
+        logging.info("Trips loaded for NYCT: %d", len(TRIPS))
 
     def _load_stop_names(self, filepath="data/nyct/stops.txt"):
         if not os.path.exists(filepath):
-            print("Failed to find stops.txt for NYCT")
+            logging.info("Failed to find stops.txt for NYCT")
             return
         with open(filepath, newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 STOP_NAMES[row["stop_id"].strip()] = row["stop_name"].strip()
 
-            print("Station names loaded for NYCT:", len(STOP_NAMES))
+            logging.info("Station names loaded for NYCT: %d", len(STOP_NAMES))
 
     def _load_route_colors(self, filepath="data/nyct/routes.txt"):
         if not os.path.exists(filepath):
-            print("Failed to find routes.txt for NYCT")
+            logging.info("Failed to find routes.txt for NYCT")
             return
         with open(filepath, newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
@@ -260,11 +223,27 @@ class NYCTStaticData:
                     "text_color": text_color
                 }
     
+    def _load_route_details(self, filepath="data/nyct/routes.txt"):
+        if not os.path.exists(filepath):
+            logging.info("Failed to find routes.txt for NYCT")
+            return
+        with open(filepath, newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                route_id = row["route_id"].strip()
+                ROUTE_DETAILS[route_id] = {
+                    "short_name": row["route_short_name"].strip(),
+                    "long_name": row["route_long_name"].strip(),
+                    "desc": row["route_desc"].strip()
+                }
+        logging.info("Route details loaded for NYCT: %d", len(ROUTE_DETAILS))
+    
     def get_headsign(self, trip_id):
-        for id, head in TRIPS.items():
-            if trip_id in id:
-                return head
-        return trip_id
+        return TRIPS.get(trip_id, trip_id)
+
     
     def get_colors(self, route_id):
         return ROUTE_COLORS.get(route_id, {"color": "#FFFFFF", "text_color": "#000000"})
+    
+    def get_route_details(self, route_id):
+        return ROUTE_DETAILS.get(route_id, {"short_name": route_id, "long_name": "", "desc": ""})
