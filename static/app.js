@@ -1,6 +1,4 @@
-// MTA Monitor Client - v2.0 (2026-02-11)
-// All train data flows via SSE only. Client-side filtering from cache.
-// Defensive array checks on all data processing to prevent crashes.
+
 
 let lastData = [];
 let lastLirrData = [];
@@ -26,6 +24,7 @@ function diffData(newData, oldData) {
     newData.forEach((row, i) => {
         if (!oldData[i] ||
             row.trip_id !== oldData[i].trip_id ||
+            row.current_stop !== oldData[i].current_stop ||
             row.next_stop !== oldData[i].next_stop ||
             row.arrival !== oldData[i].arrival) {
             changed.push(i);
@@ -91,7 +90,7 @@ function renderTable(mode, trains) {
     const tbody = document.getElementById('table-body');
     tbody.innerHTML = '';
     
-    // Defensive: ensure trains is an array
+    // ensure trains is an array
     if (!Array.isArray(trains)) {
         console.error('[CLIENT] renderTable received non-array trains:', trains);
         trains = [];
@@ -102,6 +101,7 @@ function renderTable(mode, trains) {
             <th>Route</th>
             <th>Route Long Name</th>
             <th>Direction</th>
+            <th>Current Stop</th>
             <th>Next Stop</th>
             <th>Departure</th>
             <th>Arrival</th>
@@ -111,22 +111,26 @@ function renderTable(mode, trains) {
     } else {
         thead.innerHTML = `<tr>
             <th>Route</th>
+            <th>Headsign</th>
+            <th>Service ID</th>
             <th>Trip ID</th>
             <th>Delay</th>
             <th>Schedule</th>
         </tr>`;
+
         // Only sort if trains is actually an array
         if (Array.isArray(trains)) {
             trains.sort((a, b) => a.route_name.localeCompare(b.route_name));
         }
     }
-    // apply fuzzy search filter (ensure trains is an array)
+
+    // apply fuzzy search filter
     if (!Array.isArray(trains)) {
         trains = [];
     }
     let filtered = trains.filter(t => {
         if (!searchQuery) return true;
-        const hay = [t.trip_name, t.trip_id, t.next_stop_name, t.route_name, t.route_id].join(' ');
+        const hay = [t.trip_name, t.trip_id, t.current_stop_name, t.next_stop_name, t.route_name, t.route_id].join(' ');
         return fuzzyMatch(searchQuery, hay);
     });
 
@@ -146,7 +150,6 @@ function renderTable(mode, trains) {
         const row = document.createElement('tr');
         if (changedRows.includes(i)) row.classList.add('updated');
         if (mode === 'subway') {
-            // route pill with short name and description
             const routeShortName = train.route_short_name || train.route_id || '';
             const routeDesc = train.route_desc || '';
             const pillColor = (train.route_color || '#888').replace(/^[^#]/, '#');
@@ -166,6 +169,7 @@ function renderTable(mode, trains) {
             row.innerHTML = `<td>${routeCell}${trainIdCell ? ` <span style="margin-left:8px">${trainIdCell}</span>` : ''}</td>
                 <td class="col-long-name">${routeLongName}</td>
                 <td class="col-direction">${train.direction||''}</td>
+                <td>${train.current_stop_name||''}</td>
                 <td>${train.next_stop_name||''}</td>
                 <td class="col-departure">${train.departure||''}</td>
                 <td>${train.arrival||''}</td>
@@ -175,15 +179,18 @@ function renderTable(mode, trains) {
             const pillColor = (train.route_color || '#888').replace(/^[^#]/, '#');
             const pillTextColor = getContrastColor(pillColor.replace('#',''));
             // Calculate delay from first stop
-            let delayStr = '--';
+            let delayStr = '0';
             if (train.stu && Array.isArray(train.stu) && train.stu.length > 0) {
                 const firstStop = train.stu[0];
                 const delay = firstStop.ddelay || 0;
-                delayStr = delay > 0 ? `+${delay}s` : (delay === 0 ? 'On time' : `${delay}s`);
+                delayStr = delay > 0 ? `+${delay}s` : (delay === 0 ? '0s' : `${delay}s`);
             }
+            let color = parseInt(delayStr, 10) > 0 ? "rgb(255,0,0)" : "rgb(0,128,0)";
             row.innerHTML = `<td><span class="route-pill" style="background:${pillColor};color:${pillTextColor}">${train.route_name||''}</span></td>
+                <td>${train.headsign||''}</td>
+                <td>${train.service_id||''}</td>
                 <td class="col-trainid">${train.trip_id||''}</td>
-                <td class="col-delay">${delayStr}</td>
+                <td class="col-delay" style="color: ${color}">${delayStr}</td>
                 <td>
                     <button onclick="showSchedule(${i})">View Schedule</button>
                 </td>`;
@@ -306,7 +313,7 @@ function formatTime(ts) {
 // Initialize on page load
 toggleLineInput();
 
-// Element to display human-friendly last update
+// Display last update
 function updateLastUpdatedDisplay() {
     const el = document.getElementById('last-updated');
     if (!el) return;
@@ -365,7 +372,7 @@ setInterval(updateLastUpdatedDisplay, 15000);
             try {
                 const d = JSON.parse(e.data);
                 
-                // Cache train data from server — ALWAYS ensure they're arrays
+                // Cache train data from server
                 if (d.trains) {
                     allNyctTrains = Array.isArray(d.trains.nyct) ? d.trains.nyct : [];
                     allLirrTrains = Array.isArray(d.trains.lirr) ? d.trains.lirr : [];
@@ -383,7 +390,7 @@ setInterval(updateLastUpdatedDisplay, 15000);
                 console.debug('[SSE] Heartbeat');
             }
             
-            // When server notifies, refresh visible data from cache (NO HTTP CALLS)
+            // When server notifies refresh visible data from cache
             console.log('[CLIENT] Re-rendering from cache (NO server fetch)');
             loadTrains();
             
