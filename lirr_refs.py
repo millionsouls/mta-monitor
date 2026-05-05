@@ -39,6 +39,8 @@ ROUTES = {}
 SCHEDULE = {}
 STOP_NAMES = {}
 ROUTE_COLORS = {}
+HEADSIGNS = {}
+SERVICE_IDS = {}
 
 def get_station_name(stop_id):
     stop_id = stop_id.strip()
@@ -150,6 +152,7 @@ class LIRRStaticData:
         self._load_stop_names()
         self._load_route_colors()
         self._load_schedule()
+        self._load_trips()
 
     def _load_routes(self, filepath="data/lirr/routes.txt"):
         if not os.path.exists(filepath):
@@ -200,7 +203,19 @@ class LIRRStaticData:
 
                 SCHEDULE[(trip_id, stop_sequence)] = arrival_time
 
-    def get_headsign(self, trip_id):
+    def _load_trips(self, filepath="data/lirr/trips.txt"):
+        if not os.path.exists(filepath):
+            logging.info("Failed to find trips.txt for LIRR")
+            return
+        with open(filepath, newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                trip_id = row["trip_id"].strip()
+                HEADSIGNS[trip_id] = row["trip_headsign"].strip()
+                SERVICE_IDS[trip_id] = row["service_id"].strip()
+        logging.info("Trips loaded for LIRR: %d trip headsigns, %d service IDs", len(HEADSIGNS), len(SERVICE_IDS))
+
+    def get_route(self, trip_id):
         return ROUTES.get(trip_id, trip_id)
 
     
@@ -214,3 +229,9 @@ class LIRRStaticData:
     
     def get_colors(self, route_id):
         return ROUTE_COLORS.get(route_id, {"color": "#FFFFFF", "text_color": "#000000"})
+
+    def get_headsign(self, trip_id):
+        return HEADSIGNS.get(trip_id, "")
+
+    def get_service_id(self, trip_id):
+        return SERVICE_IDS.get(trip_id, "")
