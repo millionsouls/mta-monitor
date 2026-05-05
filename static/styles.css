@@ -45,11 +45,15 @@ button.secondary{background:transparent;border:1px solid rgba(255,255,255,0.04);
 
 table{width:100%;border-collapse:collapse;font-size:13px}
 thead th{background:transparent;color:var(--muted);text-align:left;padding:10px 12px}
+thead th:first-child, tbody td:first-child {
+    width: 1%;
+    white-space: nowrap;
+}
 tbody td{padding:10px 12px;border-top:1px solid rgba(255,255,255,0.03)}
 tbody tr:hover{background:rgba(255,255,255,0.02)}
 .updated{outline:3px solid rgba(16,185,129,0.08)}
 
-.route-pill{padding:6px 10px;border-radius:999px;font-weight:600}
+.route-pill{padding:6px 10px;border-radius:8px;font-weight:600}
 
 /* search + sort controls */
 #search-input{padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
@@ -66,7 +70,20 @@ tbody tr:hover{background:rgba(255,255,255,0.02)}
 }
 
 /* pill contrast helper fallbacks */
-.route-pill{display:inline-block}
+.route-pill {
+    display: inline-block;
+}
+
+/* Train ID tooltip with hover styling */
+.train-id-tooltip {
+    cursor: help;
+    border-bottom: 1px dotted rgba(255,255,255,0.3);
+    padding: 0 2px;
+}
+
+.train-id-tooltip:hover {
+    border-bottom-color: var(--accent);
+}
 
 /* Train ID tooltip with hover styling */
 .train-id-tooltip {

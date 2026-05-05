@@ -1,6 +1,4 @@
-// MTA Monitor Client - v2.0 (2026-02-11)
-// All train data flows via SSE only. Client-side filtering from cache.
-// Defensive array checks on all data processing to prevent crashes.
+
 
 let lastData = [];
 let lastLirrData = [];
@@ -26,6 +24,7 @@ function diffData(newData, oldData) {
     newData.forEach((row, i) => {
         if (!oldData[i] ||
             row.trip_id !== oldData[i].trip_id ||
+            row.current_stop !== oldData[i].current_stop ||
             row.next_stop !== oldData[i].next_stop ||
             row.arrival !== oldData[i].arrival) {
             changed.push(i);
@@ -86,12 +85,39 @@ function decodeNYCTTrainId(trainId) {
     return `Route ${routeLine} - ${tripType}`;
 }
 
+// Decode NYCT train ID format
+// Format: XY ZZZZ+/- ORIGIN|DESTINATION
+// X = trip type (0=scheduled, =,/,$ = variations)
+// Y = route line number
+// ZZZZ+ = origin time (last char can be blank or +)
+// ORIGIN|DESTINATION = 3 char codes
+function decodeNYCTTrainId(trainId) {
+    if (!trainId || trainId.length < 6) return trainId;
+    const parts = trainId.split(' ');
+    if (parts.length < 2) return trainId;
+    
+    const typeId = parts[0];
+    const timeOriginDest = parts.slice(1).join(' ');
+    
+    const tripTypeMap = {
+        '0': 'Scheduled Trip',
+        '=': 'Reroute',
+        '/': 'Skip Stop',
+        '$': 'Turn Train'
+    };
+    
+    const tripType = tripTypeMap[typeId[0]] || 'Unknown';
+    const routeLine = typeId[1] || '?';
+    
+    return `Route ${routeLine} - ${tripType}`;
+}
+
 function renderTable(mode, trains) {
     const thead = document.getElementById('table-head');
     const tbody = document.getElementById('table-body');
     tbody.innerHTML = '';
     
-    // Defensive: ensure trains is an array
+    // ensure trains is an array
     if (!Array.isArray(trains)) {
         console.error('[CLIENT] renderTable received non-array trains:', trains);
         trains = [];
@@ -101,7 +127,9 @@ function renderTable(mode, trains) {
         thead.innerHTML = `<tr>
             <th>Route</th>
             <th>Route Long Name</th>
+            <th>Route Long Name</th>
             <th>Direction</th>
+            <th>Current Stop</th>
             <th>Next Stop</th>
             <th>Departure</th>
             <th>Arrival</th>
@@ -111,22 +139,27 @@ function renderTable(mode, trains) {
     } else {
         thead.innerHTML = `<tr>
             <th>Route</th>
+            <th>Headsign</th>
+            <th>Service ID</th>
             <th>Trip ID</th>
+            <th>Delay</th>
             <th>Delay</th>
             <th>Schedule</th>
         </tr>`;
+
         // Only sort if trains is actually an array
         if (Array.isArray(trains)) {
             trains.sort((a, b) => a.route_name.localeCompare(b.route_name));
         }
     }
-    // apply fuzzy search filter (ensure trains is an array)
+
+    // apply fuzzy search filter
     if (!Array.isArray(trains)) {
         trains = [];
     }
     let filtered = trains.filter(t => {
         if (!searchQuery) return true;
-        const hay = [t.trip_name, t.trip_id, t.next_stop_name, t.route_name, t.route_id].join(' ');
+        const hay = [t.trip_name, t.trip_id, t.current_stop_name, t.next_stop_name, t.route_name, t.route_id].join(' ');
         return fuzzyMatch(searchQuery, hay);
     });
 
@@ -146,7 +179,6 @@ function renderTable(mode, trains) {
         const row = document.createElement('tr');
         if (changedRows.includes(i)) row.classList.add('updated');
         if (mode === 'subway') {
-            // route pill with short name and description
             const routeShortName = train.route_short_name || train.route_id || '';
             const routeDesc = train.route_desc || '';
             const pillColor = (train.route_color || '#888').replace(/^[^#]/, '#');
@@ -165,7 +197,22 @@ function renderTable(mode, trains) {
             
             row.innerHTML = `<td>${routeCell}${trainIdCell ? ` <span style="margin-left:8px">${trainIdCell}</span>` : ''}</td>
                 <td class="col-long-name">${routeLongName}</td>
+            
+            // Train ID with hover tooltip (if available)
+            let trainIdCell = '';
+            if (train.train_id) {
+                const decodedTrainId = decodeNYCTTrainId(train.train_id);
+                trainIdCell = `<span class="train-id-tooltip" title="${train.train_id}\n${decodedTrainId}">${train.train_id}</span>`;
+            }
+            
+            // Route pill with description as title/hover
+            const routeCell = `<span class="route-pill" style="background:${pillColor};color:${pillTextColor}" title="${routeDesc}">${routeShortName}</span>`;
+            const routeLongName = train.route_long_name || '';
+            
+            row.innerHTML = `<td>${routeCell}${trainIdCell ? ` <span style="margin-left:8px">${trainIdCell}</span>` : ''}</td>
+                <td class="col-long-name">${routeLongName}</td>
                 <td class="col-direction">${train.direction||''}</td>
+                <td>${train.current_stop_name||''}</td>
                 <td>${train.next_stop_name||''}</td>
                 <td class="col-departure">${train.departure||''}</td>
                 <td>${train.arrival||''}</td>
@@ -175,15 +222,18 @@ function renderTable(mode, trains) {
             const pillColor = (train.route_color || '#888').replace(/^[^#]/, '#');
             const pillTextColor = getContrastColor(pillColor.replace('#',''));
             // Calculate delay from first stop
-            let delayStr = '--';
+            let delayStr = '0';
             if (train.stu && Array.isArray(train.stu) && train.stu.length > 0) {
                 const firstStop = train.stu[0];
                 const delay = firstStop.ddelay || 0;
-                delayStr = delay > 0 ? `+${delay}s` : (delay === 0 ? 'On time' : `${delay}s`);
+                delayStr = delay > 0 ? `+${delay}s` : (delay === 0 ? '0s' : `${delay}s`);
             }
+            let color = parseInt(delayStr, 10) > 0 ? "rgb(255,0,0)" : "rgb(0,128,0)";
             row.innerHTML = `<td><span class="route-pill" style="background:${pillColor};color:${pillTextColor}">${train.route_name||''}</span></td>
+                <td>${train.headsign||''}</td>
+                <td>${train.service_id||''}</td>
                 <td class="col-trainid">${train.trip_id||''}</td>
-                <td class="col-delay">${delayStr}</td>
+                <td class="col-delay" style="color: ${color}">${delayStr}</td>
                 <td>
                     <button onclick="showSchedule(${i})">View Schedule</button>
                 </td>`;
@@ -272,12 +322,17 @@ function showSchedule(index) {
             const row = document.createElement('tr');
             const arrDelay = stop.adelay !== undefined && stop.adelay !== null ? stop.adelay : '--';
             const depDelay = stop.ddelay !== undefined && stop.ddelay !== null ? stop.ddelay : '--';
+            const arrDelay = stop.adelay !== undefined && stop.adelay !== null ? stop.adelay : '--';
+            const depDelay = stop.ddelay !== undefined && stop.ddelay !== null ? stop.ddelay : '--';
             row.innerHTML = `
                 <td>${stop.stop_sequence}</td>
                 <td>${stop.stop_id}</td>
                 <td>${stop.stop_name}</td>
                 <td>${stop.scheduled}</td>
                 <td>${formatTime(stop.arrival)}</td>
+                <td>${arrDelay}</td>
+                <td>${formatTime(stop.departure)}</td>
+                <td>${depDelay}</td>
                 <td>${arrDelay}</td>
                 <td>${formatTime(stop.departure)}</td>
                 <td>${depDelay}</td>
@@ -306,7 +361,7 @@ function formatTime(ts) {
 // Initialize on page load
 toggleLineInput();
 
-// Element to display human-friendly last update
+// Display last update
 function updateLastUpdatedDisplay() {
     const el = document.getElementById('last-updated');
     if (!el) return;
@@ -365,7 +420,7 @@ setInterval(updateLastUpdatedDisplay, 15000);
             try {
                 const d = JSON.parse(e.data);
                 
-                // Cache train data from server — ALWAYS ensure they're arrays
+                // Cache train data from server
                 if (d.trains) {
                     allNyctTrains = Array.isArray(d.trains.nyct) ? d.trains.nyct : [];
                     allLirrTrains = Array.isArray(d.trains.lirr) ? d.trains.lirr : [];
@@ -383,7 +438,7 @@ setInterval(updateLastUpdatedDisplay, 15000);
                 console.debug('[SSE] Heartbeat');
             }
             
-            // When server notifies, refresh visible data from cache (NO HTTP CALLS)
+            // When server notifies refresh visible data from cache
             console.log('[CLIENT] Re-rendering from cache (NO server fetch)');
             loadTrains();
             

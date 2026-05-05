@@ -145,6 +145,8 @@ def build_all_trains():
                         "trip_id": trip.id,
                         "train_id": trip.nyct_trip.train_id if hasattr(trip, 'nyct_trip') else "",
                         "direction": trip.direction if hasattr(trip, 'direction') else "",
+                        "current_stop": stu.stop_id,
+                        "current_stop_name": stu.stop_name,
                         "next_stop": stu.stop_id,
                         "next_stop_name": stu.stop_name,
                         "departure": fmt_time(stu.departure),
@@ -162,10 +164,12 @@ def build_all_trains():
                     stu = [s.to_dict(trip) for s in trip.stop_time_updates]
                     lirr_trains.append({
                         "system": "lirr",
-                        "route_name": LIRR_STATIC.get_headsign(trip.trip.route_id),
+                        "route_name": LIRR_STATIC.get_route(trip.trip.route_id),
                         "route_color": color_info["color"],
                         "route_text_color": color_info["text_color"],
                         "trip_id": trip.id,
+                        "headsign": LIRR_STATIC.get_headsign(trip.id),
+                        "service_id": LIRR_STATIC.get_service_id(trip.id),
                         "stu": stu,
                     })
         

@@ -1,6 +1,7 @@
 import os
 import csv
 from google.protobuf.json_format import MessageToDict
+from google.protobuf.json_format import MessageToDict
 import proto.gtfs_realtime_pb2 as gtfs_realtime_pb2
 import proto.gtfs_realtime_lirr_pb2 as gtfs_realtime_lirr_pb2
 from cache_manager import get_lirr_feed
@@ -39,6 +40,8 @@ ROUTES = {}
 SCHEDULE = {}
 STOP_NAMES = {}
 ROUTE_COLORS = {}
+HEADSIGNS = {}
+SERVICE_IDS = {}
 
 def get_station_name(stop_id):
     stop_id = stop_id.strip()
@@ -53,9 +56,13 @@ def fetch_lirr_feed():
     if not cached:
         logging.warning("LIRR feed not available in cache")
     return cached
+    if not cached:
+        logging.warning("LIRR feed not available in cache")
+    return cached
 
 class LIRRFeed:
     def __init__(self, line):
+        logging.info(f"Fetching LIRR feed for line: {line}")
         logging.info(f"Fetching LIRR feed for line: {line}")
         feed_bytes = fetch_lirr_feed()
         self.feed = gtfs_realtime_pb2.FeedMessage()
@@ -64,6 +71,7 @@ class LIRRFeed:
             try:
                 self.feed.ParseFromString(feed_bytes)
             except Exception as e:
+                logging.info("Failed to parse LIRR feed. Error:", e)
                 logging.info("Failed to parse LIRR feed. Error:", e)
                 self.feed = None
         else:
@@ -150,9 +158,11 @@ class LIRRStaticData:
         self._load_stop_names()
         self._load_route_colors()
         self._load_schedule()
+        self._load_trips()
 
     def _load_routes(self, filepath="data/lirr/routes.txt"):
         if not os.path.exists(filepath):
+            logging.info("Failed to find trips.txt for LIRR")
             logging.info("Failed to find trips.txt for LIRR")
             return
         with open(filepath, newline='', encoding='utf-8') as csvfile:
@@ -160,9 +170,11 @@ class LIRRStaticData:
             for row in reader:
                 ROUTES[row['route_id'].strip()] = row['route_long_name'].strip()
         logging.info("Trips loaded for LIRR: %d", len(ROUTES))
+        logging.info("Trips loaded for LIRR: %d", len(ROUTES))
 
     def _load_stop_names(self, filepath="data/lirr/stops.txt"):
         if not os.path.exists(filepath):
+            logging.info("Failed to find stops.txt for LIRR")
             logging.info("Failed to find stops.txt for LIRR")
             return
         with open(filepath, newline='', encoding='utf-8') as csvfile:
@@ -171,9 +183,11 @@ class LIRRStaticData:
                 STOP_NAMES[row["stop_id"].strip()] = row["stop_name"].strip()
 
             logging.info("Station names loaded for LIRR: %d", len(STOP_NAMES))
+            logging.info("Station names loaded for LIRR: %d", len(STOP_NAMES))
     
     def _load_route_colors(self, filepath="data/lirr/routes.txt"):
         if not os.path.exists(filepath):
+            logging.info("Failed to find routes.txt for LIRR")
             logging.info("Failed to find routes.txt for LIRR")
             return
         with open(filepath, newline='', encoding='utf-8') as csvfile:
@@ -190,6 +204,7 @@ class LIRRStaticData:
     def _load_schedule(self, filepath="data/lirr/stop_times.txt"):
         if not os.path.exists(filepath):
             logging.info("Failed to find schedule.txt for LIRR")
+            logging.info("Failed to find schedule.txt for LIRR")
             return
         with open(filepath, newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
@@ -200,7 +215,19 @@ class LIRRStaticData:
 
                 SCHEDULE[(trip_id, stop_sequence)] = arrival_time
 
-    def get_headsign(self, trip_id):
+    def _load_trips(self, filepath="data/lirr/trips.txt"):
+        if not os.path.exists(filepath):
+            logging.info("Failed to find trips.txt for LIRR")
+            return
+        with open(filepath, newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                trip_id = row["trip_id"].strip()
+                HEADSIGNS[trip_id] = row["trip_headsign"].strip()
+                SERVICE_IDS[trip_id] = row["service_id"].strip()
+        logging.info("Trips loaded for LIRR: %d trip headsigns, %d service IDs", len(HEADSIGNS), len(SERVICE_IDS))
+
+    def get_route(self, trip_id):
         return ROUTES.get(trip_id, trip_id)
 
     
@@ -214,3 +241,9 @@ class LIRRStaticData:
     
     def get_colors(self, route_id):
         return ROUTE_COLORS.get(route_id, {"color": "#FFFFFF", "text_color": "#000000"})
+
+    def get_headsign(self, trip_id):
+        return HEADSIGNS.get(trip_id, "")
+
+    def get_service_id(self, trip_id):
+        return SERVICE_IDS.get(trip_id, "")
