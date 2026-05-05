@@ -196,28 +196,24 @@ function renderTable(mode, trains) {
             const routeLongName = train.route_long_name || '';
             
             row.innerHTML = `<td>${routeCell}${trainIdCell ? ` <span style="margin-left:8px">${trainIdCell}</span>` : ''}</td>
+                <td class="col-long-name">${routeLongName}</td>`
+            
+            row.innerHTML = `
+                <td>
+                    ${routeCell}
+                    ${trainIdCell ? `<span style="margin-left:8px">${trainIdCell}</span>` : ''}
+                </td>
                 <td class="col-long-name">${routeLongName}</td>
-            
-            // Train ID with hover tooltip (if available)
-            let trainIdCell = '';
-            if (train.train_id) {
-                const decodedTrainId = decodeNYCTTrainId(train.train_id);
-                trainIdCell = `<span class="train-id-tooltip" title="${train.train_id}\n${decodedTrainId}">${train.train_id}</span>`;
-            }
-            
-            // Route pill with description as title/hover
-            const routeCell = `<span class="route-pill" style="background:${pillColor};color:${pillTextColor}" title="${routeDesc}">${routeShortName}</span>`;
-            const routeLongName = train.route_long_name || '';
-            
-            row.innerHTML = `<td>${routeCell}${trainIdCell ? ` <span style="margin-left:8px">${trainIdCell}</span>` : ''}</td>
-                <td class="col-long-name">${routeLongName}</td>
-                <td class="col-direction">${train.direction||''}</td>
-                <td>${train.current_stop_name||''}</td>
-                <td>${train.next_stop_name||''}</td>
-                <td class="col-departure">${train.departure||''}</td>
-                <td>${train.arrival||''}</td>
+                <td class="col-direction">${train.direction || ''}</td>
+                <td>${train.current_stop_name || ''}</td>
+                <td>${train.next_stop_name || ''}</td>
+                <td class="col-departure">${train.departure || ''}</td>
+                <td>${train.arrival || ''}</td>
                 <td class="col-actual-track">${train.actual_track || ''}</td>
-                <td class="col-assigned"><input type="checkbox" disabled ${train.is_assigned ? 'checked' : ''}></td>`;
+                <td class="col-assigned">
+                    <input type="checkbox" disabled ${train.is_assigned ? 'checked' : ''}>
+                </td>
+            `;
         } else {
             const pillColor = (train.route_color || '#888').replace(/^[^#]/, '#');
             const pillTextColor = getContrastColor(pillColor.replace('#',''));
@@ -320,8 +316,6 @@ function showSchedule(index) {
     if (train && train.stu && Array.isArray(train.stu)) {
         train.stu.forEach(stop => {
             const row = document.createElement('tr');
-            const arrDelay = stop.adelay !== undefined && stop.adelay !== null ? stop.adelay : '--';
-            const depDelay = stop.ddelay !== undefined && stop.ddelay !== null ? stop.ddelay : '--';
             const arrDelay = stop.adelay !== undefined && stop.adelay !== null ? stop.adelay : '--';
             const depDelay = stop.ddelay !== undefined && stop.ddelay !== null ? stop.ddelay : '--';
             row.innerHTML = `
