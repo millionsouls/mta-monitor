@@ -195,9 +195,6 @@ function renderTable(mode, trains) {
             const routeCell = `<span class="route-pill" style="background:${pillColor};color:${pillTextColor}" title="${routeDesc}">${routeShortName}</span>`;
             const routeLongName = train.route_long_name || '';
             
-            row.innerHTML = `<td>${routeCell}${trainIdCell ? ` <span style="margin-left:8px">${trainIdCell}</span>` : ''}</td>
-                <td class="col-long-name">${routeLongName}</td>`
-            
             row.innerHTML = `
                 <td>
                     ${routeCell}

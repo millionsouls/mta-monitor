@@ -36,6 +36,9 @@ import logging
   }
 }
 '''
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "data/lirr")
 ROUTES = {}
 SCHEDULE = {}
 STOP_NAMES = {}
@@ -160,7 +163,7 @@ class LIRRStaticData:
         self._load_schedule()
         self._load_trips()
 
-    def _load_routes(self, filepath="data/lirr/routes.txt"):
+    def _load_routes(self, filepath=os.path.join(DATA_DIR, "routes.txt")):
         if not os.path.exists(filepath):
             logging.info("Failed to find trips.txt for LIRR")
             logging.info("Failed to find trips.txt for LIRR")
@@ -172,7 +175,7 @@ class LIRRStaticData:
         logging.info("Trips loaded for LIRR: %d", len(ROUTES))
         logging.info("Trips loaded for LIRR: %d", len(ROUTES))
 
-    def _load_stop_names(self, filepath="data/lirr/stops.txt"):
+    def _load_stop_names(self, filepath=os.path.join(DATA_DIR, "stops.txt")):
         if not os.path.exists(filepath):
             logging.info("Failed to find stops.txt for LIRR")
             logging.info("Failed to find stops.txt for LIRR")
@@ -201,7 +204,7 @@ class LIRRStaticData:
                     "text_color": text_color
                 }
 
-    def _load_schedule(self, filepath="data/lirr/stop_times.txt"):
+    def _load_schedule(self, filepath=os.path.join(DATA_DIR, "stop_times.txt")):
         if not os.path.exists(filepath):
             logging.info("Failed to find schedule.txt for LIRR")
             logging.info("Failed to find schedule.txt for LIRR")
@@ -215,22 +218,23 @@ class LIRRStaticData:
 
                 SCHEDULE[(trip_id, stop_sequence)] = arrival_time
 
-    def _load_trips(self, filepath="data/lirr/trips.txt"):
+    def _load_trips(self, filepath=os.path.join(DATA_DIR, "trips.txt")):
+        logging.info(f"Loading LIRR trips from {filepath}")
+
         if not os.path.exists(filepath):
-            logging.info("Failed to find trips.txt for LIRR")
-            return
+            raise FileNotFoundError(f"Missing GTFS file: {filepath}")
         with open(filepath, newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
                 trip_id = row["trip_id"].strip()
                 HEADSIGNS[trip_id] = row["trip_headsign"].strip()
                 SERVICE_IDS[trip_id] = row["service_id"].strip()
-        logging.info("Trips loaded for LIRR: %d trip headsigns, %d service IDs", len(HEADSIGNS), len(SERVICE_IDS))
+        logging.info("HEADSIGNS loaded: %d", len(HEADSIGNS))
+        logging.info("SERVICE_IDS loaded: %d", len(SERVICE_IDS))
 
     def get_route(self, trip_id):
         return ROUTES.get(trip_id, trip_id)
 
-    
     def get_schedule(self, trip_id, stop_sequence):
         # stop_sequence may be string or int, so ensure int for lookup
         try:
