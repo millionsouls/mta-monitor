@@ -132,7 +132,10 @@ def build_all_trains():
                 color_info = NYCT_STATIC.get_colors(trip.trip.route_id)
                 route_details = NYCT_STATIC.get_route_details(trip.trip.route_id)
                 if trip.stop_time_updates:
-                    stu = trip.stop_time_updates[0]
+                    # First StopTimeUpdate in the list is the train's current stop (approaching/at/just departed)
+                    curr = trip.stop_time_updates[0]
+                    # The next stop in the schedule, if available, is the following element
+                    nxt = trip.stop_time_updates[1] if len(trip.stop_time_updates) > 1 else None
                     nyct_trains.append({
                         "system": "nyct",
                         "route_id": trip.trip.route_id,
@@ -145,13 +148,18 @@ def build_all_trains():
                         "trip_id": trip.id,
                         "train_id": trip.nyct_trip.train_id if hasattr(trip, 'nyct_trip') else "",
                         "direction": trip.direction if hasattr(trip, 'direction') else "",
-                        "current_stop": stu.stop_id,
-                        "current_stop_name": stu.stop_name,
-                        "next_stop": stu.stop_id,
-                        "next_stop_name": stu.stop_name,
-                        "departure": fmt_time(stu.departure),
-                        "arrival": fmt_time(stu.arrival),
-                        "actual_track": stu.actual_track if hasattr(stu, 'actual_track') else "",
+                        "current_stop": curr.stop_id,
+                        "current_stop_name": curr.stop_name,
+                        "next_stop": (nxt.stop_id if nxt else curr.stop_id),
+                        "next_stop_name": (nxt.stop_name if nxt else curr.stop_name),
+                        "departure": fmt_time(curr.departure),
+                        "arrival": fmt_time(curr.arrival),
+                        # numeric timestamps for client-side calculations (unix seconds)
+                        "current_arrival_ts": curr.arrival if hasattr(curr, 'arrival') else (curr.arrival if getattr(curr, 'arrival', None) is not None else None),
+                        "current_departure_ts": curr.departure if hasattr(curr, 'departure') else (curr.departure if getattr(curr, 'departure', None) is not None else None),
+                        "next_arrival_ts": (nxt.arrival if nxt and hasattr(nxt, 'arrival') else (nxt.arrival if nxt and getattr(nxt, 'arrival', None) is not None else None)),
+                        "next_departure_ts": (nxt.departure if nxt and hasattr(nxt, 'departure') else (nxt.departure if nxt and getattr(nxt, 'departure', None) is not None else None)),
+                        "actual_track": curr.actual_track if hasattr(curr, 'actual_track') else "",
                         "is_assigned": trip.assigned if hasattr(trip, 'assigned') else False,
                     })
         

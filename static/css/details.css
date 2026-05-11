@@ -1,0 +1,71 @@
+.route-pill {
+    display: inline-block;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-weight: 700;
+}
+
+.train-id-tooltip {
+    cursor: help;
+    padding: 0 2px;
+    border-bottom: 1px dotted rgba(255,255,255,0.3);
+}
+
+.train-id-tooltip:hover {
+    border-bottom-color: var(--accent);
+}
+
+.col-delay {
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.col-long-name {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+#schedule-modal,
+#modal-backdrop {
+    display: none;
+}
+
+#modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(2,6,23,0.7);
+}
+
+#schedule-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1001;
+    min-width: 320px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow: auto;
+    padding: 18px;
+    border-radius: 12px;
+    background: var(--card);
+}
+
+#schedule-modal header {
+    margin-bottom: 8px;
+}
+
+#schedule-modal table {
+    width: 100%;
+}
+
+#schedule-modal th,
+#schedule-modal td {
+    padding: 8px 10px;
+    text-align: left;
+}
+
+#schedule-modal th {
+    color: var(--muted);
+}

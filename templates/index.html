@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>MTA Train Monitor</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/map.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/details.css') }}">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
         <div class="app-container">
@@ -52,6 +55,10 @@
                 </div>
             </div>
 
+            <div class="card" style="margin-top:12px;padding:0;">
+                <div id="map" style="height:420px;border-radius:12px 12px 0 0;overflow:hidden"></div>
+            </div>
+
             <div class="card">
                 <div id="alert"></div>
                 <table id="train-table">
@@ -89,6 +96,7 @@
     </div>
     <div id="modal-backdrop" style="display:none;" onclick="closeSchedule()"></div>
 
-    <script src="{{ url_for('static', filename='app.js') }}?v=2"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="{{ url_for('static', filename='main.js') }}"></script>
 </body>
 </html>

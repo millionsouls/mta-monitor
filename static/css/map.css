@@ -1,0 +1,77 @@
+#map {
+    width: 100%;
+    height: 420px;
+    margin: 0;
+    border-radius: 12px;
+}
+
+.moving-train-icon {
+    background: transparent !important;
+    border: none !important;
+    width: 24px !important;
+    height: 24px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.map-marker {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.map-circle {
+    width: 24px;
+    height: 24px;
+    min-width: 24px;
+    min-height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1 / 1;
+    font-size: 11px;
+    font-weight: 700;
+    box-sizing: border-box;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.45);
+}
+
+.map-arrow {
+    position: absolute;
+    bottom: -14px;
+
+    font-size: 10px;
+    font-weight: 800;
+
+    padding: 1px 5px;
+    border-radius: 999px;
+
+    line-height: 1;
+
+    background: rgba(0,0,0,0.75);
+    color: white;
+}
+
+.map-arrow.uptown {
+    background: rgba(255, 255, 255, 0.95);
+    color: #00a015;
+}
+
+.map-arrow.downtown {
+    background: rgba(255, 255, 255, 0.95);
+    color: #dd0000;
+}
+
+.map-grid {
+    display: inline-block;
+}
+
+.map-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}

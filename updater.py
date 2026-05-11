@@ -73,6 +73,25 @@ def run_updates():
             "ETag": etag,
             "Last-Modified": last_modified
         }
+        # If this is the NYCT feed, copy stops.txt into the app static folder
+        if name == 'nyct':
+            # find stops.txt inside the extracted folder (search recursively)
+            stops_src = None
+            for root, dirs, files in os.walk(extract_path):
+                if 'stops.txt' in files:
+                    stops_src = os.path.join(root, 'stops.txt')
+                    break
+            if stops_src:
+                static_dir = os.path.join(os.path.dirname(__file__), 'static')
+                os.makedirs(static_dir, exist_ok=True)
+                stops_dst = os.path.join(static_dir, 'stops.txt')
+                try:
+                    shutil.copyfile(stops_src, stops_dst)
+                    print(f"Copied NYCT stops to {stops_dst}")
+                except Exception as e:
+                    print(f"WARNING: failed to copy stops.txt to static: {e}")
+            else:
+                print("WARNING: stops.txt not found in NYCT feed extraction")
 
     # Process each feed
     # Save to metadata
