@@ -15,6 +15,7 @@ const state = {
     allLirrTrains: [],
     sseConnected: false,
     stopsMap: {},
+    currentStationLine: null,
     trackedTripId: null
 };
 
@@ -37,13 +38,60 @@ function loadStopsCSV() {
             const rows = parseCSV(text);
             rows.forEach(function (row) {
                 if (!row.stop_id) return;
-                state.stopsMap[row.stop_id] = { lat: row.stop_lat, lon: row.stop_lon, name: row.stop_name };
+                state.stopsMap[row.stop_id] = {
+                    lat: row.stop_lat,
+                    lon: row.stop_lon,
+                    name: row.stop_name,
+                    location_type: row.location_type,
+                    parent_station: row.parent_station
+                };
             });
             console.log('[CLIENT] Loaded stops:', Object.keys(state.stopsMap).length);
         })
         .catch(function (err) {
             console.warn('[CLIENT] Failed to load stops.txt', err);
         });
+}
+
+function getStationLabelsForLine(line) {
+    if (!line || line === 'ALL') return [];
+    const seen = new Set();
+    const stations = [];
+    state.allNyctTrains.forEach(train => {
+        if (train.route_id !== line) return;
+        [train.current_stop, train.next_stop].forEach(stopIdRaw => {
+            if (!stopIdRaw) return;
+            const stopId = String(stopIdRaw).trim();
+            const stopInfo = state.stopsMap[stopId];
+            if (!stopInfo) return;
+            let parentId = stopInfo.parent_station;
+            if (parentId && state.stopsMap[parentId] && state.stopsMap[parentId].location_type === '1') {
+                seen.add(parentId);
+            } else if (stopInfo.location_type === '1') {
+                seen.add(stopId);
+            } else if (parentId && state.stopsMap[parentId]) {
+                seen.add(parentId);
+            }
+        });
+    });
+
+    seen.forEach(stopId => {
+        const info = state.stopsMap[stopId];
+        if (!info || String(info.location_type) !== '1') return;
+        const lat = parseFloat(info.lat);
+        const lon = parseFloat(info.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+        stations.push({
+            stop_id: stopId,
+            stop_name: info.name,
+            stop_lat: info.lat,
+            stop_lon: info.lon,
+            location_type: info.location_type,
+            parent_station: info.parent_station || ''
+        });
+    });
+
+    return stations;
 }
 
 function loadTrains() {
@@ -73,6 +121,24 @@ function loadTrains() {
         trackedTripId: state.trackedTripId,
         mapManager
     });
+    if (mode === 'subway') {
+        const line = document.getElementById('line').value;
+        if (line === 'ALL') {
+            if (state.currentStationLine !== 'ALL') {
+                mapManager.clearStationLabels();
+                state.currentStationLine = 'ALL';
+            }
+        } else {
+            const stations = getStationLabelsForLine(line);
+            mapManager.updateStationLabels(stations);
+            state.currentStationLine = line;
+        }
+    } else {
+        if (state.currentStationLine !== null) {
+            mapManager.clearStationLabels();
+            state.currentStationLine = null;
+        }
+    }
     updateTrackedButton();
     if (state.lastUpdateTs) updateLastUpdatedDisplay();
 }

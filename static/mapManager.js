@@ -5,6 +5,7 @@ export class MapManager {
         this.map = null;
         this.trainLayer = null;
         this.movingLayer = null;
+        this.stationLayer = null;
         this.movingMarkers = {}; // trip_id - marker
         this.visibleTrains = {}; // trip_id - train info with coords
         this._interval = null;
@@ -19,6 +20,7 @@ export class MapManager {
             }).addTo(this.map);
             this.trainLayer = L.layerGroup().addTo(this.map);
             this.movingLayer = L.layerGroup().addTo(this.map);
+            this.stationLayer = L.layerGroup().addTo(this.map);
         } catch (e) {
             console.warn('Leaflet init failed', e);
         }
@@ -164,6 +166,36 @@ export class MapManager {
                 delete this.movingMarkers[tripId];
             }
         });
+    }
+
+    updateStationLabels(stations) {
+        if (!this.map || !this.stationLayer) return;
+        try {
+            this.stationLayer.clearLayers();
+        } catch (e) { }
+        if (!Array.isArray(stations)) return;
+
+        stations.forEach(station => {
+            if (!station || String(station.location_type || '') !== '1') return;
+            const lat = parseFloat(station.stop_lat);
+            const lon = parseFloat(station.stop_lon);
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+            const icon = L.divIcon({
+                className: 'station-label-icon',
+                html: `<div class="station-label">${escHtml(station.stop_name)}</div>`,
+                iconSize: [120, 24],
+                iconAnchor: [60, 24]
+            });
+            L.marker([lat, lon], { icon: icon, interactive: false, keyboard: false, zoomAnimation: false }).addTo(this.stationLayer);
+        });
+    }
+
+    clearStationLabels() {
+        if (!this.map || !this.stationLayer) return;
+        try {
+            this.stationLayer.clearLayers();
+        } catch (e) { }
     }
 
     startMovingInterval() {

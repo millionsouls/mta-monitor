@@ -45,7 +45,10 @@ FeedMessage
             - replacement_period
 '''
 TRIPS = {}
+TRIP_ROUTES = {}
+ROUTE_STATIONS = {}
 STOP_NAMES = {}
+STATION_DETAILS = {}
 ROUTE_COLORS = {}
 ROUTE_DETAILS = {}  # Store route_short_name and route_desc
 _CACHED_ALL_VERSION = None
@@ -184,6 +187,8 @@ class NYCTStaticData:
     def __init__(self):
         self._load_trips()
         self._load_stop_names()
+        self._load_station_details()
+        self._load_route_stations()
         self._load_route_colors()
         self._load_route_details()
 
@@ -194,7 +199,9 @@ class NYCTStaticData:
         with open(filepath, newline='', encoding='utf-8') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                TRIPS[row['trip_id'].strip()] = row['trip_headsign'].strip()
+                trip_id = row['trip_id'].strip()
+                TRIPS[trip_id] = row['trip_headsign'].strip()
+                TRIP_ROUTES[trip_id] = row['route_id'].strip()
         logging.info("Trips loaded for NYCT: %d", len(TRIPS))
 
     def _load_stop_names(self, filepath="data/nyct/stops.txt"):
@@ -237,7 +244,73 @@ class NYCTStaticData:
                     "desc": row["route_desc"].strip()
                 }
         logging.info("Route details loaded for NYCT: %d", len(ROUTE_DETAILS))
-    
+
+    def _load_station_details(self, filepath=None):
+        if filepath is None:
+            filepath = os.path.join(os.path.dirname(__file__), 'static', 'stops.txt')
+        if not os.path.exists(filepath):
+            logging.info("Failed to find static/stops.txt for NYCT station labels")
+            return
+        with open(filepath, newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                stop_id = row['stop_id'].strip()
+                STATION_DETAILS[stop_id] = {
+                    'stop_name': row.get('stop_name', '').strip(),
+                    'stop_lat': row.get('stop_lat', '').strip(),
+                    'stop_lon': row.get('stop_lon', '').strip(),
+                    'location_type': row.get('location_type', '').strip(),
+                    'parent_station': row.get('parent_station', '').strip()
+                }
+        logging.info("Station details loaded for NYCT: %d", len(STATION_DETAILS))
+
+    def _load_route_stations(self, filepath="data/nyct/stop_times.txt"):
+        if not os.path.exists(filepath):
+            logging.info("Failed to find stop_times.txt for NYCT")
+            return
+        with open(filepath, newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                stop_id = row['stop_id'].strip()
+                trip_id = row['trip_id'].strip()
+                route_id = TRIP_ROUTES.get(trip_id)
+                if not route_id:
+                    continue
+                route_stations = ROUTE_STATIONS.setdefault(route_id, set())
+                route_stations.add(stop_id)
+                stop_info = STATION_DETAILS.get(stop_id, {})
+                parent_station = stop_info.get('parent_station')
+                if parent_station:
+                    route_stations.add(parent_station)
+                if stop_info.get('location_type') == '1':
+                    route_stations.add(stop_id)
+        logging.info("Route station mappings loaded for NYCT: %d routes", len(ROUTE_STATIONS))
+
+    def get_stations_for_line(self, line='ALL'):
+        station_ids = set()
+        if line == 'ALL':
+            station_ids = {stop_id for stop_id, info in STATION_DETAILS.items() if info.get('location_type') == '1'}
+        else:
+            station_ids = {stop_id for stop_id in ROUTE_STATIONS.get(line, set()) if STATION_DETAILS.get(stop_id, {}).get('location_type') == '1'}
+        stations = []
+        for stop_id in sorted(station_ids):
+            info = STATION_DETAILS.get(stop_id)
+            if not info:
+                continue
+            stations.append({
+                'stop_id': stop_id,
+                'stop_name': info['stop_name'],
+                'stop_lat': info['stop_lat'],
+                'stop_lon': info['stop_lon'],
+                'parent_station': info['parent_station'],
+                'location_type': info['location_type']
+            })
+        return {
+            'line': line,
+            'station_count': len(stations),
+            'stations': stations
+        }
+
     def get_headsign(self, trip_id):
         return TRIPS.get(trip_id, trip_id)
 
