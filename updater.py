@@ -6,7 +6,8 @@ import shutil
 
 feeds = {
     "nyct": "https://rrgtfsfeeds.s3.amazonaws.com/gtfs_subway.zip",
-    "lirr": "https://rrgtfsfeeds.s3.amazonaws.com/gtfslirr.zip"
+    "lirr": "https://rrgtfsfeeds.s3.amazonaws.com/gtfslirr.zip",
+    "mnr": "https://rrgtfsfeeds.s3.amazonaws.com/gtfsmnr.zip"
 }
 
 meta_file = "meta.json"
