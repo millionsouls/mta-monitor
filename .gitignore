@@ -15,6 +15,9 @@ Thumbs.db
 data/
 meta.json
 
+.venv
+.vscode
+
 # Python cache
 **/__pycache__/
 __pycache__/
