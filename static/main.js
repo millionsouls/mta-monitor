@@ -14,7 +14,8 @@ const state = {
     allNyctTrains: [],
     allLirrTrains: [],
     sseConnected: false,
-    stopsMap: {}
+    stopsMap: {},
+    trackedTripId: null
 };
 
 window.stopsMap = state.stopsMap;
@@ -63,7 +64,16 @@ function loadTrains() {
     } else {
         trains = state.allLirrTrains;
     }
-    tableRenderer.renderTable(mode, trains, { searchQuery: state.searchQuery, sortByArrival: state.sortByArrival, sortAsc: state.sortAsc, onShowSchedule: showSchedule, mapManager });
+    tableRenderer.renderTable(mode, trains, {
+        searchQuery: state.searchQuery,
+        sortByArrival: state.sortByArrival,
+        sortAsc: state.sortAsc,
+        onShowSchedule: showSchedule,
+        onTrackTrain: trackTrain,
+        trackedTripId: state.trackedTripId,
+        mapManager
+    });
+    updateTrackedButton();
     if (state.lastUpdateTs) updateLastUpdatedDisplay();
 }
 
@@ -125,6 +135,28 @@ function showSchedule(index) {
 function closeSchedule() {
     document.getElementById('schedule-modal').style.display = 'none';
     document.getElementById('modal-backdrop').style.display = 'none';
+}
+
+function updateTrackedButton() {
+    const btn = document.getElementById('clear-tracked');
+    if (!btn) return;
+    btn.disabled = !state.trackedTripId;
+    if (state.trackedTripId) {
+        btn.textContent = 'Clear tracked train';
+    } else {
+        btn.textContent = 'Clear tracked train';
+    }
+}
+
+function trackTrain(tripId) {
+    if (!tripId) return;
+    state.trackedTripId = String(tripId);
+    loadTrains();
+}
+
+function clearTrackedTrain() {
+    state.trackedTripId = null;
+    loadTrains();
 }
 
 function updateLastUpdatedDisplay() {
@@ -203,6 +235,10 @@ window.toggleSort = toggleSort;
 window.toggleLineInput = toggleLineInput;
 window.showSchedule = showSchedule;
 window.closeSchedule = closeSchedule;
+window.clearTrackedTrain = clearTrackedTrain;
+window.onTrackTrain = function (tripId) {
+    trackTrain(tripId);
+};
 
 // expose state for debugging
 window.__mta_state = state;

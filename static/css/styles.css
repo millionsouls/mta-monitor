@@ -124,11 +124,23 @@ tbody tr:hover {
     background: rgba(255,255,255,0.02);
 }
 
-.updated {
-    outline: 3px solid rgba(16,185,129,0.08);
+.selected-row {
+    background: rgba(16, 185, 129, 0.14);
+    outline: 2px solid rgba(16, 185, 129, 0.35);
 }
 
-thead th:first-child,
+    .tracked-label {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        background: rgba(16, 185, 129, 0.18);
+        color: #a7f3d0;
+    }
+
 tbody td:first-child {
     width: 1%;
     white-space: nowrap;

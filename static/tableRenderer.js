@@ -22,7 +22,7 @@ export class TableRenderer {
     }
 
     renderTable(mode, trains, options = {}) {
-        const { searchQuery = '', sortByArrival = true, sortAsc = true, onShowSchedule = null, mapManager = null } = options;
+        const { searchQuery = '', sortByArrival = true, sortAsc = true, onShowSchedule = null, onTrackTrain = null, trackedTripId = null, mapManager = null } = options;
         const thead = document.getElementById('table-head');
         const tbody = document.getElementById('table-body');
         tbody.innerHTML = '';
@@ -67,10 +67,24 @@ export class TableRenderer {
                 return ta < tb ? 1 : -1;
             });
         }
+        if (trackedTripId) {
+            filtered.sort((a,b) => {
+                const aId = a && a.trip_id !== undefined ? String(a.trip_id) : null;
+                const bId = b && b.trip_id !== undefined ? String(b.trip_id) : null;
+                if (aId === trackedTripId) return -1;
+                if (bId === trackedTripId) return 1;
+                return 0;
+            });
+        }
         const changedRows = this.diffData(filtered, this.lastData);
         filtered.forEach((train, i) => {
             const row = document.createElement('tr');
+            const tripId = train && train.trip_id !== undefined ? String(train.trip_id) : null;
+            row.dataset.tripid = tripId || '';
             if (changedRows.includes(i)) row.classList.add('updated');
+            if (trackedTripId && tripId === String(trackedTripId)) {
+                row.classList.add('selected-row');
+            }
             if (mode === 'subway') {
                 const routeShortName = train.route_short_name || train.route_id || '';
                 const routeDesc = train.route_desc || '';
@@ -82,11 +96,13 @@ export class TableRenderer {
                     trainIdCell = `<span class="train-id-tooltip" title="${escHtml(train.train_id)}\n${escHtml(decodedTrainId)}">${escHtml(train.train_id)}</span>`;
                 }
                 const routeCell = `<span class="route-pill" style="background:${pillColor};color:${pillTextColor}" title="${escHtml(routeDesc)}">${escHtml(routeShortName)}</span>`;
+                const trackedLabel = (trackedTripId && tripId === String(trackedTripId)) ? '<span class="tracked-label">TRACKED</span>' : '';
                 const routeLongName = train.route_long_name || '';
                 row.innerHTML = `
                     <td>
                         ${routeCell}
                         ${trainIdCell ? `<span style="margin-left:8px">${trainIdCell}</span>` : ''}
+                        ${trackedLabel}
                     </td>
                     <td class="col-long-name">${escHtml(routeLongName)}</td>
                     <td class="col-direction">${escHtml(train.direction || '')}</td>
@@ -118,13 +134,19 @@ export class TableRenderer {
                         <button data-index="${i}" class="view-schedule-btn">View Schedule</button>
                     </td>`;
             }
+            if (onTrackTrain && tripId) {
+                row.addEventListener('click', (event) => {
+                    if (event.target.closest('button')) return;
+                    onTrackTrain(tripId);
+                });
+            }
             tbody.appendChild(row);
         });
         if (changedRows.length > 0 && this.lastData.length > 0) {
             if (window.showAlert) window.showAlert('Train data updated!');
         }
         this.lastData = filtered;
-        if (mode === 'subway' && mapManager) mapManager.updateMapMarkers(filtered, window.stopsMap || {});
+        if (mode === 'subway' && mapManager) mapManager.updateMapMarkers(filtered, window.stopsMap || {}, trackedTripId);
         if (mode !== 'subway') this.lastLirrData = trains;
         // attach schedule click handlers
         if (onShowSchedule) {

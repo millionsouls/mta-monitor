@@ -24,8 +24,13 @@ export class MapManager {
         }
     }
 
-    updateMapMarkers(trains, stopsMap) {
+    easeInOutQuad(t) {
+        return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    }
+
+    updateMapMarkers(trains, stopsMap, trackedTripId = null) {
         if (!this.map || !this.trainLayer || !Array.isArray(trains)) return;
+        this.trackedTripId = trackedTripId ? String(trackedTripId) : null;
         try { this.trainLayer.clearLayers(); } catch (e) { }
 
         this.visibleTrains = {};
@@ -56,6 +61,11 @@ export class MapManager {
         });
     }
 
+    createTrainIcon(routeShort, color, textColor, arrowClass, arrow, isTracked) {
+        const html = `<div class="map-marker${isTracked ? ' tracked-marker' : ''}"><div class="map-circle" style="background:${color};color:${textColor}">${escHtml(routeShort)}</div><div class="map-arrow ${arrowClass}">${arrow}</div></div>`;
+        return L.divIcon({ className: 'moving-train-icon', html: html, iconSize: [24, 24], iconAnchor: [12, 12] });
+    }
+
     updateMovingTrains() {
         const now = Math.floor(Date.now() / 1000);
         Object.keys(this.movingMarkers).forEach(tripId => {
@@ -71,8 +81,12 @@ export class MapManager {
             const currTs = info.current_departure_ts || info.current_arrival_ts;
             const nextTs = info.next_arrival_ts;
             
-            if (!currTs || !nextTs) {
-                if (this.movingMarkers[tripId]) { this.movingLayer.removeLayer(this.movingMarkers[tripId]); delete this.movingMarkers[tripId]; }
+            const hasCoords = Number.isFinite(info.currLat) && Number.isFinite(info.currLon) && Number.isFinite(info.nextLat) && Number.isFinite(info.nextLon);
+            if (!currTs || !nextTs || !hasCoords) {
+                if (this.movingMarkers[tripId]) {
+                    this.movingLayer.removeLayer(this.movingMarkers[tripId]);
+                    delete this.movingMarkers[tripId];
+                }
                 return;
             }
             const total = nextTs - currTs;
@@ -83,8 +97,9 @@ export class MapManager {
 
             const elapsed = now - currTs;
             const frac = Math.max(0, Math.min(1, elapsed / total));
-            const lat = info.currLat + (info.nextLat - info.currLat) * frac;
-            const lon = info.currLon + (info.nextLon - info.currLon) * frac;
+            const easedFrac = this.easeInOutQuad(frac);
+            const lat = info.currLat + (info.nextLat - info.currLat) * easedFrac;
+            const lon = info.currLon + (info.nextLon - info.currLon) * easedFrac;
 
             let marker = this.movingMarkers[tripId];
 
@@ -105,12 +120,15 @@ export class MapManager {
             }
 
             const textColor = getContrastColor(color);
+            const isTracked = this.trackedTripId && tripId === this.trackedTripId;
 
             if (!marker) {
-                const html = `<div class="map-marker"><div class="map-circle" style="background:${color};color:${textColor}">${escHtml(routeShort)}</div><div class="map-arrow ${arrowClass}">${arrow}</div></div>`;
-                const icon = L.divIcon({ className: 'moving-train-icon', html: html, iconSize: [24, 24], iconAnchor: [12, 12] });
-               
+                const icon = this.createTrainIcon(routeShort, color, textColor, arrowClass, arrow, isTracked);
                 marker = L.marker([lat, lon], { icon: icon }).addTo(this.movingLayer);
+                marker._tracked = isTracked;
+                marker.on('click', () => {
+                    if (window.onTrackTrain) window.onTrackTrain(tripId);
+                });
                 
                 try { document.querySelectorAll(`.map-item[data-tripid="${tripId}"]`).forEach(el => el.style.display = 'none'); } catch (e) { }
                 let etaDisplay = '';
@@ -124,6 +142,10 @@ export class MapManager {
                 marker.bindTooltip(`${routeShort} ${tripId}${etaDisplay}`, { permanent: false, direction: 'top' });
                 this.movingMarkers[tripId] = marker;
             } else {
+                if (marker._tracked !== isTracked) {
+                    marker.setIcon(this.createTrainIcon(routeShort, color, textColor, arrowClass, arrow, isTracked));
+                    marker._tracked = isTracked;
+                }
                 marker.setLatLng([lat, lon]);
                 try {
                     let etaDisplay = '';
