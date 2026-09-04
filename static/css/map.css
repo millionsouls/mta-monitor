@@ -5,69 +5,168 @@
     border-radius: 12px;
 }
 
+.stationary-train-icon,
 .moving-train-icon {
     background: transparent !important;
     border: none !important;
-    width: 24px !important;
-    height: 24px !important;
+    width: 52px !important;
+    height: 52px !important;
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.station-cluster-icon {
+    background: transparent !important;
+    border: none !important;
+    width: 52px !important;
+    height: 52px !important;
+    cursor: pointer;
+}
+
+.station-cluster {
+    position: relative;
+    width: 52px;
+    height: 52px;
+}
+
+.cluster-card {
+    position: absolute;
+    top: 11px;
+    left: 11px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid rgba(255, 255, 255, 0.92);
+    outline: 1px solid rgba(15, 23, 36, 0.42);
+    border-radius: 50%;
+    box-shadow: 0 3px 8px rgba(2, 6, 23, 0.5);
+    font-size: 12px;
+    font-weight: 800;
+    box-sizing: border-box;
+}
+
+.cluster-card-0 { transform: translateX(-7px); z-index: 1; }
+.cluster-card-1 { transform: translateX(-2px); z-index: 2; }
+.cluster-card-2 { transform: translateX(3px); z-index: 3; }
+.cluster-card-3 { transform: translateX(8px); z-index: 4; }
+
+.cluster-count {
+    position: absolute;
+    right: -3px;
+    bottom: 1px;
+    z-index: 5;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #fff;
+    border-radius: 999px;
+    background: #172033;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 2px 4px rgba(2, 6, 23, 0.42);
+}
+
+.station-grid-background-icon {
+    background: transparent !important;
+    border: none !important;
+    pointer-events: none;
+}
+
+.station-grid-background {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 12px;
+    background: rgba(15, 23, 36, 0.8);
+    box-shadow: 0 6px 16px rgba(2, 6, 23, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(3px);
 }
 
 .map-marker {
     position: relative;
-    width: 24px;
-    height: 24px;
+    width: 52px;
+    height: 52px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
-.map-circle {
+.map-marker::after {
+    content: '';
+    position: absolute;
+    bottom: 1px;
+    left: 50%;
     width: 24px;
-    height: 24px;
-    min-width: 24px;
-    min-height: 24px;
+    height: 7px;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    background: rgba(15, 23, 36, 0.34);
+    filter: blur(1px);
+    z-index: -1;
+}
+
+.map-circle {
+    position: relative;
+    z-index: 1;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
     aspect-ratio: 1 / 1;
-    font-size: 11px;
-    font-weight: 700;
-    box-sizing: border-box;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.45);
-}
-
-.map-arrow {
-    position: absolute;
-    bottom: -14px;
-
-    font-size: 10px;
+    border: 3px solid rgba(255, 255, 255, 0.92);
+    outline: 1px solid rgba(15, 23, 36, 0.42);
+    font-size: 12px;
     font-weight: 800;
-
-    padding: 1px 5px;
-    border-radius: 999px;
-
-    line-height: 1;
-
-    background: rgba(0,0,0,0.75);
-    color: white;
+    box-sizing: border-box;
+    box-shadow: 0 3px 8px rgba(2, 6, 23, 0.5);
+    transition: transform 160ms ease, box-shadow 160ms ease;
 }
 
-.map-arrow.uptown {
-    background: rgba(255, 255, 255, 0.95);
-    color: #00a015;
+.map-circle.direction-north {
+    outline: 3px solid #16a34a;
 }
 
-.map-arrow.downtown {
-    background: rgba(255, 255, 255, 0.95);
-    color: #dd0000;
+.map-circle.direction-south {
+    outline: 3px solid #dc2626;
+}
+
+.map-circle.direction-unknown {
+    outline: 1px solid rgba(15, 23, 36, 0.42);
 }
 
 .map-marker.tracked-marker .map-circle {
-    box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.8), 0 1px 2px rgba(0,0,0,0.45);
+    box-shadow: 0 0 0 3px #fff, 0 0 0 6px rgba(16, 185, 129, 0.88), 0 4px 10px rgba(2, 6, 23, 0.6);
+    transform: scale(1.08);
+}
+
+.map-marker.tracked-marker::before {
+    content: 'TRACKED';
+    position: absolute;
+    top: -13px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 3px 6px;
+    border-radius: 4px;
+    background: #064e3b;
+    color: #d1fae5;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    box-shadow: 0 2px 5px rgba(2, 6, 23, 0.35);
 }
 
 .station-label-icon {
