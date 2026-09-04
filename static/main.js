@@ -272,7 +272,6 @@ window.decodeNYCTTrainId = function (trainId) {
 // initialize
 toggleLineInput();
 mapManager.initMap();
-mapManager.startMovingInterval();
 loadStopsCSV();
 
 // start SSE
