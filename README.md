@@ -4,6 +4,8 @@
 
 **MTA ToS for RT Feeds:** https://www.mta.info/developers/terms-and-conditions
 
+**Demo:** https://mta.snowyskis.dev
+
 ## Installation
 ```
 git clone https://github.com/millionsouls/mta-monitor.git
